@@ -30,9 +30,9 @@ def main(arg):
     print('Please select only one of learn or compress or uncompress.')
     print('Command to check the options is -h or --help')
   
-  elif (arg.learn != None and arg.max_memory != None) :
+  elif (arg.learn != None and arg.save_max_memory != None) :
     print('ERROR')
-    print('max_memory can only be used with compress mode and decompress mode.')
+    print('save_max_memory can only be used with compress mode and decompress mode.')
 
   elif arg.learn != None:
     print('train mode')
@@ -54,14 +54,14 @@ def main(arg):
         if arg.mode[0] == 'abs' or arg.mode[0] == 'rel' or arg.mode[0] == 'absrel' or arg.mode[0] == 'pwrel':
           if arg.bound != None and len(arg.bound) != 0:
             if ((arg.mode[0] == 'abs' or arg.mode[0] == 'rel' or arg.mode[0] == 'pwrel') and len(arg.bound) == 1) or (arg.mode[0] == 'absrel' and len(arg.bound) == 2):
-              if arg.max_memory != None:
+              if arg.save_max_memory != None:
                 if arg.window != None:
-                  compress.run_save_memory(arg.compress[0], arg.compress[1], arg.compress[2], arg.preprocess[0], arg.window[0], arg.threshold, arg.mode[0], arg.bound, GPU_flag, arg.verbose, arg.no_entropy, arg.max_memory)
+                  compress.run_save_memory(arg.compress[0], arg.compress[1], arg.compress[2], arg.preprocess[0], arg.window[0], arg.threshold, arg.mode[0], arg.bound, GPU_flag, arg.verbose, arg.no_entropy, arg.save_max_memory)
                 elif arg.threshold != None:
-                  compress.run_save_memory(arg.compress[0], arg.compress[1], arg.compress[2], arg.preprocess[0], arg.window, arg.threshold[0], arg.mode[0], arg.bound, GPU_flag, arg.verbose, arg.no_entropy, arg.max_memory)
+                  compress.run_save_memory(arg.compress[0], arg.compress[1], arg.compress[2], arg.preprocess[0], arg.window, arg.threshold[0], arg.mode[0], arg.bound, GPU_flag, arg.verbose, arg.no_entropy, arg.save_max_memory)
                 else:
                   print('unexpected error')
-              if arg.max_memory == None:
+              if arg.save_max_memory == None:
                 if arg.window != None:
                   compress.run(arg.compress[0], arg.compress[1], arg.compress[2], arg.preprocess[0], arg.window[0], arg.threshold, arg.mode[0], arg.bound, GPU_flag, arg.verbose, arg.no_entropy)
                 elif arg.threshold != None:
@@ -109,6 +109,6 @@ if __name__ == '__main__':
   parser.add_argument('-f', '--force', action='store_true')
   parser.add_argument('-v', '--verbose', action='store_true')
   parser.add_argument('-n', '--no_entropy', action='store_false')
-  parser.add_argument('-s', '--max_memory', type=float, nargs=1, metavar=('max_memory'), dest='max_memory', help='Max memory to use(units:GB. For example, 2.5 for 2.5GB).')
+  parser.add_argument('-s', '--save_max_memory', type=float, nargs=1, metavar=('save_max_memory'), dest='save_max_memory', help='Max memory to use(units:GB. For example, 2.5 for 2.5GB).')
   args = parser.parse_args()
   main(args)
