@@ -110,6 +110,6 @@ if __name__ == '__main__':
   parser.add_argument('-f', '--force', action='store_true')
   parser.add_argument('-v', '--verbose', action='store_true')
   parser.add_argument('-n', '--no_entropy', action='store_false')
-  parser.add_argument('-s', '--save_max_memory', type=float, nargs=1, metavar=('save_max_memory'), dest='save_max_memory', default=1.0, help='Max memory to use(units:GB. For example, 2.5 for 2.5GB).')
+  parser.add_argument('-s', '--save_max_memory', type=float, nargs=1, metavar=('save_max_memory'), dest='save_max_memory', help='Max memory to use(units:GB. For example, 2.5 for 2.5GB).')
   args = parser.parse_args()
   main(args)

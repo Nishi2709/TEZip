@@ -1,0 +1,32 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+
+        {
+            "name": "Python: 現在のファイル",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+                "-c",
+                "../../../riken/TEZip/TEZip-main/data/kitti/model_kitti/",
+                "../../../riken/TEZip/TEZip-main/data/kitti/rgb/kittidata_rgb2", 
+                "../../../riken/TEZip/TEZip-main/data/kitti/rgb/comp_data_rgb2",
+                "-p",
+                "5",
+                "-w",
+                "5",
+                "-m",
+                "pwrel",
+                "-b",
+                "0.1" ,
+                "--no_entropy"
+            ]
+        }
+    ]
+}

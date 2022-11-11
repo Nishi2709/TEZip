@@ -391,6 +391,10 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 
 def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, MODE, BOUND_VALUE, GPU_FLAG, VERBOSE, ENTROPY_RUN, MAX_MEMORY):
 
+	if ENTROPY_RUN:
+		print("ERROR:Check option[--no_entropy]. Cannot entropy encoding when save_momory mode")
+		exit()
+
 	if not os.path.exists(OUTPUT_DIR): os.mkdir(OUTPUT_DIR)
 
 	file_paths = sorted(glob.glob(os.path.join(DATA_DIR, '*')))
@@ -417,9 +421,16 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 	except UnidentifiedImageError as e:
 		print(DATA_DIR, "contains files or folders that are not images.")
 		exit()
+	
 	img_size_GB = convert_size_from_byte(img_size_byte, "GB")
 	image_num_per_1time = (MAX_MEMORY*0.9) // img_size_GB
 	sequential_times = (len(file_paths) // image_num_per_1time) + 1
+
+	# 逐次実行結果を結合して保持する用
+	key_frame_str_merged = ""
+	result_difference_merged = np.array([])
+
+	# 逐次実行
 	for sequential in range(1,sequential_times+1):
 		start_index = image_num_per_1time * (sequential - 1)
 		end_index = (image_num_per_1time * sequential) -1
@@ -582,11 +593,7 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 		key_frame = key_frame.flatten()
 		key_frame = key_frame.astype('uint8')
 		key_frame_str = key_frame.tostring()
-
-		# zstdでキーフレームを圧縮・出力
-		data=zstd.compress(key_frame_str, 9)
-		with open(os.path.join(OUTPUT_DIR, "key_frame.dat"), mode='wb') as f:
-			f.write(data)
+		key_frame_str_merged += key_frame_str
 
 		# GPU無:numpy GPU有:cupyに設定
 		if GPU_FLAG:
@@ -689,24 +696,45 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 		if GPU_FLAG:
 			result_difference = xp.asnumpy(result_difference)
 
-		if ENTROPY_RUN:
-			# 差分配列の末尾にエントロピー符号化のテーブルを仕込んでおく
-			s_np = np.array(table, dtype='int16')
-			result_difference = np.append(result_difference, s_np)
-			result_difference = np.append(result_difference, len(table))
+		result_difference_merged = np.concatenate([result_difference_merged, result_difference])
+
+		if sequential == 1:
+			shape_all_sequential = X_test.shape
 		else:
-			result_difference = np.append(result_difference, -1)
+			shape_all_sequential = np.vstack([shape_all_sequential, X_test.shape])
 
-		# 差分配列の末尾にshapeとPREPROCESSを仕込んで保存しておく
-		for shapes in X_test.shape:
-			result_difference = np.append(result_difference, shapes)
-		result_difference = np.append(result_difference, PREPROCESS)
 
-		result_difference = result_difference.astype(np.int16)
-		result_difference_str = result_difference.tostring()
+	# zstdでキーフレームを圧縮・出力
+	data=zstd.compress(key_frame_str_merged, 9)
+	with open(os.path.join(OUTPUT_DIR, "key_frame.dat"), mode='wb') as f:
+		f.write(data)
+	
+	# warm upの値、shape、エントロピー符号化の情報を差分データの末尾に追加
+	#差分配列の末尾にエントロピー符号化のテーブルは無しなので-1
 
-		# zstdで差分を圧縮・出力
-		data=zstd.compress(result_difference_str, 9)
-		with open(os.path.join(OUTPUT_DIR, "entropy.dat"), mode='wb') as f:
-			f.write(data)
+	# エントロピー符号化
+	result_difference_merged = np.append(result_difference_merged, -1)
+	# shape(1, 画像枚数, 縦, 横, チャネル数)
+	isnot_same_length = not(shape_all_sequential[:,2].all())
+	isnot_same_width = not(shape_all_sequential[:,3].all())
+	isnot_same_channel = not(shape_all_sequential[:,4].all())
+
+	if any([isnot_same_length, isnot_same_width, isnot_same_channel]):
+		print("Error:Image standards do not match.")
+		exit()
+	all_image_num = shape_all_sequential[:,1].sum()
+	result_difference_merged = np.append(result_difference_merged, shape_all_sequential[0,0])
+	result_difference_merged = np.append(result_difference_merged, all_image_num)
+	result_difference_merged = np.append(result_difference_merged, shape_all_sequential[0,2])
+	result_difference_merged = np.append(result_difference_merged, shape_all_sequential[0,3])
+	result_difference_merged = np.append(result_difference_merged, shape_all_sequential[0,4])
+	# warm up
+	result_difference_merged = np.append(result_difference_merged, PREPROCESS)
+	result_difference_merged = result_difference_merged.astype(np.int16)
+	result_difference_merged_str = result_difference_merged.tostring()
+
+	# zstdで差分を圧縮・出力
+	data=zstd.compress(result_difference_merged_str, 9)
+	with open(os.path.join(OUTPUT_DIR, "entropy.dat"), mode='wb') as f:
+		f.write(data)
 	
