@@ -428,7 +428,7 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 	sequential_times = int((len(file_paths) // image_num_per_1time) + 1)
 
 	# 逐次実行結果を結合して保持する用
-	key_frame_str_merged = ""
+	#key_frame_str_merged = ""
 	result_difference_merged = np.array([])
 
 	# 逐次実行
@@ -594,7 +594,11 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 		key_frame = key_frame.flatten()
 		key_frame = key_frame.astype('uint8')
 		key_frame_str = key_frame.tostring()
-		key_frame_str_merged += key_frame_str
+		#key_frame_str_merged += key_frame_str
+		if sequential == 1:
+			key_frame_str_merged = key_frame_str
+		else:
+			key_frame_str_merged += key_frame_str
 
 		# GPU無:numpy GPU有:cupyに設定
 		if GPU_FLAG:
