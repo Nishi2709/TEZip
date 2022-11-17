@@ -15,8 +15,8 @@
             "args": [
                 "-c",
                 "../../../riken/TEZip/TEZip-main/data/kitti/model_kitti/",
-                "../../../riken/TEZip/TEZip-main/data/kitti/rgb/kittidata_rgb2", 
-                "../../../riken/TEZip/TEZip-main/data/kitti/rgb/comp_data_rgb2",
+                "../../../riken/TEZip/TEZip-main/data/kitti/check_momory_out_in_comp/kittidata_rgb_2GB", 
+                "../../../riken/TEZip/TEZip-main/data/kitti/check_momory_out_in_comp/comp_data_rgb_2GB",
                 "-p",
                 "5",
                 "-w",
@@ -25,7 +25,9 @@
                 "pwrel",
                 "-b",
                 "0.1" ,
-                "--no_entropy"
+                "--no_entropy", 
+                "--save_max_memory",
+                "1.0",
             ]
         }
     ]

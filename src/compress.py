@@ -404,6 +404,7 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 		exit()
 
 	# max_memoryから１回で読み込む画像枚数を概算
+	# byteからKB, MB, GB, ..に変換する関数
 	def convert_size_from_byte(size, unit="B"):
 		units = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB")
 		i = units.index(unit.upper())
@@ -423,8 +424,8 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 		exit()
 	
 	img_size_GB = convert_size_from_byte(img_size_byte, "GB")
-	image_num_per_1time = (MAX_MEMORY*0.9) // img_size_GB
-	sequential_times = (len(file_paths) // image_num_per_1time) + 1
+	image_num_per_1time = int((MAX_MEMORY*0.9) // img_size_GB)
+	sequential_times = int((len(file_paths) // image_num_per_1time) + 1)
 
 	# 逐次実行結果を結合して保持する用
 	key_frame_str_merged = ""
