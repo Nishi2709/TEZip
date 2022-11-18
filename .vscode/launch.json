@@ -28,6 +28,7 @@
                 "--no_entropy", 
                 "--save_max_memory",
                 "1.0",
+                "f"
             ]
         }
     ]

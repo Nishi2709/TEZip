@@ -389,7 +389,7 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 		f.write(data)
 	
 
-def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, MODE, BOUND_VALUE, GPU_FLAG, VERBOSE, ENTROPY_RUN, MAX_MEMORY):
+def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, MODE, BOUND_VALUE, GPU_FLAG, VERBOSE, ENTROPY_RUN, IMAGE_NUM_PER_TIME):
 
 	if ENTROPY_RUN:
 		print("ERROR:Check option[--no_entropy]. Cannot entropy encoding when save_momory mode")
@@ -405,6 +405,7 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 
 	# max_memoryから１回で読み込む画像枚数を概算
 	# byteからKB, MB, GB, ..に変換する関数
+	"""
 	def convert_size_from_byte(size, unit="B"):
 		units = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB")
 		i = units.index(unit.upper())
@@ -424,8 +425,10 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 		exit()
 	
 	img_size_GB = convert_size_from_byte(img_size_byte, "GB")
-	image_num_per_1time = int((MAX_MEMORY*0.9) // img_size_GB)
+	image_num_per_1time = int(((MAX_MEMORY*0.9) // img_size_GB)/10)
 	sequential_times = int((len(file_paths) // image_num_per_1time) + 1)
+	"""
+	sequential_times = int((len(file_paths) // IMAGE_NUM_PER_TIME) + 1)
 
 	# 逐次実行結果を結合して保持する用
 	#key_frame_str_merged = ""
@@ -433,8 +436,8 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 
 	# 逐次実行
 	for sequential in range(1,sequential_times+1):
-		start_index = image_num_per_1time * (sequential - 1)
-		end_index = (image_num_per_1time * sequential) -1
+		start_index = IMAGE_NUM_PER_TIME * (sequential - 1)
+		end_index = (IMAGE_NUM_PER_TIME * sequential) -1
 		try:
 			origine_img = np.array(Image.open(file_paths[start_index]))
 			origine_img = origine_img[np.newaxis, np.newaxis, :, :, :]
@@ -454,9 +457,14 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 			print(DATA_DIR, "contains files or folders that are not images.")
 			exit()
 		
-		with open(os.path.join(OUTPUT_DIR, 'filename.txt'), 'w', encoding='UTF-8') as f:
-			for file_name in files:
-				f.write("%s\n" % file_name)
+		if sequential == 1:
+			with open(os.path.join(OUTPUT_DIR, 'filename.txt'), 'w', encoding='UTF-8') as f:
+				for file_name in files:
+					f.write("%s\n" % file_name)
+		else:
+			with open(os.path.join(OUTPUT_DIR, 'filename.txt'), 'a+', encoding='UTF-8') as f:
+				for file_name in files:
+					f.write("%s\n" % file_name)
 		
 		X_test = origine_img.astype(np.float32) /255
 
