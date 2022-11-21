@@ -104,11 +104,11 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, GPU_FLAG, VERBOSE):
 	decompress_data = decompress_data[:-1]
 
 	# 圧縮前のnumpyのshapeを復元
-	X_test_sahpe = decompress_data[-5:]
-	X_test_sahpe = X_test_sahpe.astype('int16')
+	X_test_shape = decompress_data[-5:]
+	X_test_shape = X_test_shape.astype('int16')
 	decompress_data = decompress_data[:-5]
 
-	X_test = X_test.reshape(X_test_sahpe)
+	X_test = X_test.reshape(X_test_shape)
 
 	X_test = X_test / 255
 
@@ -233,7 +233,7 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, GPU_FLAG, VERBOSE):
 
 	start = time.time()
 	# Density-based Spatial Encoding
-	tmp = xp.reshape(decompress_data, X_test_sahpe)
+	tmp = xp.reshape(decompress_data, X_test_shape)
 	
 	# cupyに変換していたらnumpyに戻す
 	if GPU_FLAG:
@@ -253,14 +253,14 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, GPU_FLAG, VERBOSE):
 
 	count = 0
 
-	if len(file_names) != X_test_sahpe[1]:
+	if len(file_names) != X_test_shape[1]:
 		print("ERROR：The lengths of filename.txt and images do not match.")
 		print("filename.txt：", len(file_names))
-		print("number of images", X_test_sahpe[1])
+		print("number of images", X_test_shape[1])
 		exit()
 
-	for i in range(X_test_sahpe[0]):
-		for j in range(X_test_sahpe[1]):
+	for i in range(X_test_shape[0]):
+		for j in range(X_test_shape[1]):
 			tmp_np = decompress[i,j,:,:,:]
 			tmp_np = tmp_np.astype('uint8')
 			tmp_image = Image.fromarray(tmp_np)
