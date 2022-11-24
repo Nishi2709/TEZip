@@ -1,6 +1,7 @@
 import os
 import glob
 import numpy as np
+import math
 
 from keras import backend as K
 from keras.models import Model, model_from_json
@@ -428,10 +429,9 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 	image_num_per_1time = int(((MAX_MEMORY*0.9) // img_size_GB)/10)
 	sequential_times = int((len(file_paths) // image_num_per_1time) + 1)
 	"""
-	sequential_times = int((len(file_paths) // IMAGE_NUM_PER_TIME) + 1)
+	sequential_times = int(math.ceil(len(file_paths) / IMAGE_NUM_PER_TIME))
 
 	# 逐次実行結果を結合して保持する用
-	#key_frame_str_merged = ""
 	result_difference_merged = np.array([])
 
 	# 逐次実行
@@ -717,13 +717,14 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 
 		result_difference_merged = np.concatenate([result_difference_merged, result_difference])
 
+		# 各逐次実行の画像を確認する用
 		if sequential == 1:
 			shape_all_sequential = X_test.shape
 		else:
 			shape_all_sequential = np.vstack([shape_all_sequential, X_test.shape])
 
 		# エントロピー符号化
-		result_difference_tmp = np.append(result_difference_merged, -1)
+		result_difference_tmp = np.append(result_difference, -1)
 
 		#all_image_num = shape_all_sequential[:,1].sum()
 		all_image_num = 20
