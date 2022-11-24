@@ -610,7 +610,7 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 
 		# tmp
 		# zstdでキーフレームを圧縮・出力
-		data=zstd.compress(key_frame_str_merged, 9)
+		data=zstd.compress(key_frame_str, 9)
 		with open(os.path.join(OUTPUT_DIR, f"key_frame{sequential}.dat"), mode='wb') as f:
 			f.write(data)
 
@@ -728,19 +728,19 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 		#all_image_num = shape_all_sequential[:,1].sum()
 		all_image_num = 20
 		if sequential == 1:
-			result_difference_merged = np.append(result_difference_merged, shape_all_sequential[0])
-			result_difference_merged = np.append(result_difference_merged, all_image_num)
-			result_difference_merged = np.append(result_difference_merged, shape_all_sequential[2])
-			result_difference_merged = np.append(result_difference_merged, shape_all_sequential[3])
-			result_difference_merged = np.append(result_difference_merged, shape_all_sequential[4])
+			result_difference_tmp = np.append(result_difference_tmp, shape_all_sequential[0])
+			result_difference_tmp = np.append(result_difference_tmp, all_image_num)
+			result_difference_tmp = np.append(result_difference_tmp, shape_all_sequential[2])
+			result_difference_tmp = np.append(result_difference_tmp, shape_all_sequential[3])
+			result_difference_tmp = np.append(result_difference_tmp, shape_all_sequential[4])
 		else:
-			result_difference_merged = np.append(result_difference_merged, shape_all_sequential[0,0])
-			result_difference_merged = np.append(result_difference_merged, all_image_num)
-			result_difference_merged = np.append(result_difference_merged, shape_all_sequential[0,2])
-			result_difference_merged = np.append(result_difference_merged, shape_all_sequential[0,3])
-			result_difference_merged = np.append(result_difference_merged, shape_all_sequential[0,4])
+			result_difference_tmp = np.append(result_difference_tmp, shape_all_sequential[0,0])
+			result_difference_tmp = np.append(result_difference_tmp, all_image_num)
+			result_difference_tmp = np.append(result_difference_tmp, shape_all_sequential[0,2])
+			result_difference_tmp = np.append(result_difference_tmp, shape_all_sequential[0,3])
+			result_difference_tmp = np.append(result_difference_tmp, shape_all_sequential[0,4])
 
-		result_difference_tmp = np.append(result_difference, PREPROCESS)
+		result_difference_tmp = np.append(result_difference_tmp, PREPROCESS)
 		
 		result_difference_tmp = result_difference_tmp.astype(np.int16)
 		result_difference_tmp_str = result_difference_tmp.tostring()
