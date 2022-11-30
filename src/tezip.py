@@ -33,7 +33,6 @@ def main(arg):
   #elif (arg.learn != None and arg.save_max_memory != None) :
   elif (arg.learn != None and arg.image_num_per_time != None) :
     print('ERROR')
-    #print('save_max_memory can only be used with compress mode and decompress mode.')
     print('image_num_per_time can only be used with compress mode and decompress mode.')
 
 
@@ -61,10 +60,8 @@ def main(arg):
               if arg.image_num_per_time != None:
                 arg.no_entropy = False
                 if arg.window != None:
-                  #compress.run_save_memory(arg.compress[0], arg.compress[1], arg.compress[2], arg.preprocess[0], arg.window[0], arg.threshold, arg.mode[0], arg.bound, GPU_flag, arg.verbose, arg.no_entropy, arg.save_max_memory)
                   compress.run_save_memory(arg.compress[0], arg.compress[1], arg.compress[2], arg.preprocess[0], arg.window[0], arg.threshold, arg.mode[0], arg.bound, GPU_flag, arg.verbose, arg.no_entropy, arg.image_num_per_time)
                 elif arg.threshold != None:
-                  #compress.run_save_memory(arg.compress[0], arg.compress[1], arg.compress[2], arg.preprocess[0], arg.window, arg.threshold[0], arg.mode[0], arg.bound, GPU_flag, arg.verbose, arg.no_entropy, arg.save_max_memory)
                   compress.run_save_memory(arg.compress[0], arg.compress[1], arg.compress[2], arg.preprocess[0], arg.window, arg.threshold[0], arg.mode[0], arg.bound, GPU_flag, arg.verbose, arg.no_entropy, arg.image_num_per_time)
                 else:
                   print('unexpected error')
@@ -93,8 +90,12 @@ def main(arg):
       print('warm up num.')
   
   elif arg.uncompress != None:
-    print('uncompress mode')
-    decompress.run(arg.uncompress[0], arg.uncompress[1], arg.uncompress[2], GPU_flag, arg.verbose)
+    if arg.image_num_per_time != None:
+      print('uncompress mode')
+      decompress.run_save_memory(arg.uncompress[0], arg.uncompress[1], arg.uncompress[2], GPU_flag, arg.verbose, arg.image_num_per_time)
+    else:
+      print('uncompress mode')
+      decompress.run(arg.uncompress[0], arg.uncompress[1], arg.uncompress[2], GPU_flag, arg.verbose)
   
   else:
     print('ERROR')
