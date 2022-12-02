@@ -404,31 +404,6 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 		print("ERROR:", DATA_DIR, "is an empty or non-existent directory")
 		exit()
 
-	# max_memoryから１回で読み込む画像枚数を概算
-	# byteからKB, MB, GB, ..に変換する関数
-	"""
-	def convert_size_from_byte(size, unit="B"):
-		units = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB")
-		i = units.index(unit.upper())
-		#size = round(size / 1024 ** i, 2)
-		size = size / 1024 ** i
-		return size
-	try:
-		img_size_byte = os.path.getsize(file_paths[0])
-	except PermissionError as e:
-		print(DATA_DIR, "contains files or folders that are not images.")
-		exit()
-	except IndexError as e:
-		print(DATA_DIR, "contains files or folders that are not images.")
-		exit()
-	except UnidentifiedImageError as e:
-		print(DATA_DIR, "contains files or folders that are not images.")
-		exit()
-	
-	img_size_GB = convert_size_from_byte(img_size_byte, "GB")
-	image_num_per_1time = int(((MAX_MEMORY*0.9) // img_size_GB)/10)
-	sequential_times = int((len(file_paths) // image_num_per_1time) + 1)
-	"""
 	sequential_times = int(math.ceil(len(file_paths) / IMAGE_NUM_PER_TIME))
 
 	# 逐次実行結果を結合して保持する用
