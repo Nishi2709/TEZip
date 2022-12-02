@@ -436,6 +436,7 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 
 	# 逐次実行
 	for sequential in range(1,sequential_times+1):
+		
 		start_index = IMAGE_NUM_PER_TIME * (sequential - 1)
 		end_index = (IMAGE_NUM_PER_TIME * sequential) -1
 		try:

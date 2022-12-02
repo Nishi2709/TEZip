@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import math
 
 from keras import backend as K
 from keras.models import Model, model_from_json
@@ -348,13 +349,13 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, GPU_FLAG, VERBOSE, IMAGE_
 	X_test_pad_all = data_padding(X_test)
 
 	# キーフレームの場所と何枚先を推論したかを復元
-	key_frame_check = []
+	key_frame_check_all = []
 	for X_testcut in X_test_pad_all:
 		for idx in range(X_testcut.shape[0]):
 			if not np.all(X_testcut[idx] == 0):
-				key_frame_check.append(idx)
+				key_frame_check_all.append(idx)
 
-	key_frame_check.append(X_test_pad_all.shape[1])
+	key_frame_check_all.append(X_test_pad_all.shape[1])
 
 	if test_model.input.shape[2] != X_test_pad_all.shape[2] or test_model.input.shape[3] != X_test_pad_all.shape[3]:
 		print("ERROR:keyframe size and model size do not match.")
@@ -362,21 +363,84 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, GPU_FLAG, VERBOSE, IMAGE_
 		print("key frame size: height ", X_test.shape[2], " width ",  X_test.shape[3])
 		exit()
 
+	# GPU無:numpy GPU有:cupyに設定
+	if GPU_FLAG:
+		# tensorflowが占有しているメモリを解放
+		cuda.select_device(0)
+		cuda.close()
+		import cupy as xp
+	else:
+		import numpy as xp
+
+	
+	start = time.time()
+	# エントロピー符号化のmapping tableを復元
+	table = []
+	table_len = decompress_data_all[-1]
+
+	if table_len == -1:
+		decompress_data_all = decompress_data_all[:-1]
+	else:
+		table_start = -table_len - 1
+		table_np = decompress_data_all[table_start:-1]
+		for num in table_np:
+			table.append(num)
+
+		table_xp = xp.array(table)
+
+		elapsed_time = time.time() - start
+
+		if VERBOSE: print ("table_create:{0}".format(elapsed_time) + "[sec]")
+
+		# エントロピー符号化のmapping tableを配列から削除
+		decompress_data_all = decompress_data_all[:table_start]
+
+		# GPUがあるならばcupyに変換
+		if GPU_FLAG:
+			decompress_data_all = xp.asarray(decompress_data_all)
+
+		start = time.time()
+		# エントロピー符号化から復元
+		decompress_data_all = replacing_based_on_frequency(decompress_data_all, table_xp, xp)
+		
+		elapsed_time = time.time() - start
+
+		if VERBOSE: print ("replacing_based_on_frequency:{0}".format(elapsed_time) + "[sec]")
+
+		# エントロピー符号化のテーブル作成のために1600との差分として保存したものの復元
+		decompress_data_all = xp.subtract(1600, decompress_data_all)
+
+	start = time.time()
+	# Density-based Spatial Encoding
+	decompress_data_all_reshaped = xp.reshape(decompress_data_all, X_test_shape)
+	
+	# cupyに変換していたらnumpyに戻す
+	if GPU_FLAG:
+		tmp = xp.asnumpy(decompress_data_all_reshaped)
+	difference_first_all = finding_difference(decompress_data_all_reshaped)
+
+	elapsed_time = time.time() - start
+
+	if VERBOSE: print ("finding_difference:{0}".format(elapsed_time) + "[sec]")
+
 	# 逐次処理準備
 	# -iで指定した画像枚数を最も近いキーフレームに置き換える(キーフレームで区切らないといけないため)
-	IMAGE_NUM_PER_TIME_NEW = np.abs(np.asfarray(key_frame_check) - IMAGE_NUM_PER_TIME).argmin()
+	IMAGE_NUM_PER_TIME_NEW =  key_frame_check_all[np.abs(np.asfarray(key_frame_check_all) - IMAGE_NUM_PER_TIME).argmin()]
 
-	sequential_times = int(math.ceil(len(file_paths) / IMAGE_NUM_PER_TIME_NEW))
+	
+	image_num = X_test_shape[1]
+	sequential_times = int(math.ceil(image_num / IMAGE_NUM_PER_TIME_NEW))
 	
 	# 逐次実行
 	for sequential in range(1,sequential_times+1):
 
-	# キーフレーム
-	X_test_pad = x_pad_all...
-	key_farme_check = ....
-	# entorpy
-	decompress_data = decompress_data_all...
-
+		start_image_index = IMAGE_NUM_PER_TIME_NEW * (sequential - 1)
+		end_image_index = (IMAGE_NUM_PER_TIME_NEW * sequential) -1
+		# key_frame
+		X_test_pad = X_test_pad_all[:,start_image_index:end_image_index+1, :, :, :]
+		key_frame_check = key_frame_check_all[start_image_index:end_image_index+1]
+		# entorpy
+		difference_first = difference_first_all[:,start_image_index:end_image_index+1, :, :, :]
 
 		# predict
 		result_list = []
@@ -431,66 +495,6 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, GPU_FLAG, VERBOSE, IMAGE_
 		# 推論結果からパディングを外す
 		X_hat_no_pad = X_hat_flat[:,:, :X_test.shape[2], :X_test.shape[3]]
 
-		# GPU無:numpy GPU有:cupyに設定
-		if GPU_FLAG:
-			# tensorflowが占有しているメモリを解放
-			cuda.select_device(0)
-			cuda.close()
-			import cupy as xp
-		else:
-			import numpy as xp
-
-		
-		start = time.time()
-		# エントロピー符号化のmapping tableを復元
-		table = []
-		table_len = decompress_data[-1]
-
-		if table_len == -1:
-			decompress_data = decompress_data[:-1]
-		else:
-			table_start = -table_len - 1
-			table_np = decompress_data[table_start:-1]
-			for num in table_np:
-				table.append(num)
-
-			table_xp = xp.array(table)
-
-			elapsed_time = time.time() - start
-
-			if VERBOSE: print ("table_create:{0}".format(elapsed_time) + "[sec]")
-
-			# エントロピー符号化のmapping tableを配列から削除
-			decompress_data = decompress_data[:table_start]
-
-			# GPUがあるならばcupyに変換
-			if GPU_FLAG:
-				decompress_data = xp.asarray(decompress_data)
-
-			start = time.time()
-			# エントロピー符号化から復元
-			decompress_data = replacing_based_on_frequency(decompress_data, table_xp, xp)
-			
-			elapsed_time = time.time() - start
-
-			if VERBOSE: print ("replacing_based_on_frequency:{0}".format(elapsed_time) + "[sec]")
-
-			# エントロピー符号化のテーブル作成のために1600との差分として保存したものの復元
-			decompress_data = xp.subtract(1600, decompress_data)
-
-		start = time.time()
-		# Density-based Spatial Encoding
-		tmp = xp.reshape(decompress_data, X_test_shape)
-		
-		# cupyに変換していたらnumpyに戻す
-		if GPU_FLAG:
-			tmp = xp.asnumpy(tmp)
-		difference_first = finding_difference(tmp)
-
-		elapsed_time = time.time() - start
-
-		if VERBOSE: print ("finding_difference:{0}".format(elapsed_time) + "[sec]")
-
 		# 画像の出力
 		decompress = X_hat_no_pad * 255
 		decompress = decompress - difference_first
@@ -498,7 +502,7 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, GPU_FLAG, VERBOSE, IMAGE_
 		decompress = np.where(decompress > 255, 255, decompress)
 		decompress = np.where(decompress < 0, 0, decompress)
 
-		count = 0
+		count = 0 + start_image_index
 
 		if len(file_names) != X_test_shape[1]:
 			print("ERROR：The lengths of filename.txt and images do not match.")
@@ -507,7 +511,7 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, GPU_FLAG, VERBOSE, IMAGE_
 			exit()
 
 		for i in range(X_test_shape[0]):
-			for j in range(X_test_shape[1]):
+			for j in range(start_image_index, end_image_index+1):
 				tmp_np = decompress[i,j,:,:,:]
 				tmp_np = tmp_np.astype('uint8')
 				tmp_image = Image.fromarray(tmp_np)
