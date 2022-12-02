@@ -423,22 +423,46 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, GPU_FLAG, VERBOSE, IMAGE_
 
 	if VERBOSE: print ("finding_difference:{0}".format(elapsed_time) + "[sec]")
 
+	if len(file_names) != X_test_shape[1]:
+		print("ERROR：The lengths of filename.txt and images do not match.")
+		print("filename.txt：", len(file_names))
+		print("number of images", X_test_shape[1])
+		exit()
+
 	# 逐次処理準備
-	# -iで指定した画像枚数を最も近いキーフレームに置き換える(キーフレームで区切らないといけないため)
-	IMAGE_NUM_PER_TIME_NEW =  key_frame_check_all[np.abs(np.asfarray(key_frame_check_all) - IMAGE_NUM_PER_TIME).argmin()]
-
-	
 	image_num = X_test_shape[1]
-	sequential_times = int(math.ceil(image_num / IMAGE_NUM_PER_TIME_NEW))
-	
-	# 逐次実行
-	for sequential in range(1,sequential_times+1):
+	# 各逐次処理の最初の画像indexを格納したlist作成(-iで指定した画像枚数を最も近いキーフレームを採用)
+	image_index_li = list(range(0,image_num))
+	sequential_first_key_frame_li = [0]
+	count = 1
+	while(len(image_index_li)!=0):
+		if (len(image_index_li) > IMAGE_NUM_PER_TIME ):
+			first_image_index1 = np.abs(np.asfarray(key_frame_check_all) - (IMAGE_NUM_PER_TIME*count)).argmin()
+			# 各逐次処理の開始の画像
+			first_image_index2 = key_frame_check_all[first_image_index1]
+			sequential_first_key_frame_li.append(first_image_index2)
+			image_index_li = image_index_li[image_index_li.index(first_image_index2):]
+			count += 1
+		else:
+			image_index_li = []
+	# 各逐次処理の最初と最後の画像indexを格納したlist作成
 
-		start_image_index = IMAGE_NUM_PER_TIME_NEW * (sequential - 1)
-		end_image_index = (IMAGE_NUM_PER_TIME_NEW * sequential) -1
+	sequential_key_frame_li = []
+	for i in range(len(sequential_first_key_frame_li)):
+		if i != sequential_first_key_frame_li.index(sequential_first_key_frame_li[-1]):
+			sequential_key_frame_li.append((sequential_first_key_frame_li[i], sequential_first_key_frame_li[i+1]-1))
+		else:
+			sequential_key_frame_li.append((sequential_first_key_frame_li[i], image_num-1))
+
+	# 逐次実行
+	for sequential, index_tuple in enumerate(sequential_key_frame_li):
+		sequential += 1
+		start_image_index = index_tuple[0]
+		end_image_index = index_tuple[1]
 		# key_frame
 		X_test_pad = X_test_pad_all[:,start_image_index:end_image_index+1, :, :, :]
-		key_frame_check = key_frame_check_all[start_image_index:end_image_index+1]
+		key_frame_check = key_frame_check_all[key_frame_check_all.index(start_image_index):key_frame_check_all.index(end_image_index+1)+1]
+
 		# entorpy
 		difference_first = difference_first_all[:,start_image_index:end_image_index+1, :, :, :]
 
@@ -448,42 +472,80 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, GPU_FLAG, VERBOSE, IMAGE_
 		X_test_one = X_test_pad[0, 0]
 		X_test_one = X_test_one[np.newaxis, np.newaxis, :, :, :]
 		warm_up_frame = test_model.predict(X_test_one, batch_size)
-		for _ in range(warm_up):
-			result_list.append(warm_up_frame)
+		if sequential == 1 :
+			for _ in range(warm_up):
+				result_list.append(warm_up_frame)
 
-		for idx in range(warm_up, len(key_frame_check[warm_up:]) + warm_up - 1):
-			for predict_idx in range(key_frame_check[idx], key_frame_check[idx+1]):
-				if predict_idx == key_frame_check[idx]:
-					X_test_one = X_test_pad[0, predict_idx]
-					X_test_one = X_test_one[np.newaxis, np.newaxis, :, :, :]
-					X_test_tmp = np.zeros(X_test_one.shape)
-					X_test_one = np.hstack([X_test_one, X_test_tmp])
-					X_hat = test_model.predict(X_test_one, batch_size)
+			for idx in range(warm_up, len(key_frame_check[warm_up:]) + warm_up - 1):
+				for predict_idx in range(key_frame_check[idx], key_frame_check[idx+1]):
 
-					X_hat_predict_one = X_test_pad[0, predict_idx]
-					X_hat_predict_one = X_hat_predict_one[np.newaxis, np.newaxis, :, :, :]
-					result_list.append(X_hat_predict_one)
-				
-				elif predict_idx == key_frame_check[idx] + 1:
-					X_test_one = X_test_pad[0, predict_idx - 1]
-					X_test_one = X_test_one[np.newaxis, np.newaxis, :, :, :]
-					X_test_tmp = np.zeros(X_test_one.shape)
-					X_test_one = np.hstack([X_test_one, X_test_tmp])
-					X_hat = test_model.predict(X_test_one, batch_size)
+					if predict_idx == key_frame_check[idx]:
+						X_test_one = X_test_pad[0, predict_idx]
+						X_test_one = X_test_one[np.newaxis, np.newaxis, :, :, :]
+						X_test_tmp = np.zeros(X_test_one.shape)
+						X_test_one = np.hstack([X_test_one, X_test_tmp])
+						X_hat = test_model.predict(X_test_one, batch_size)
 
-					X_hat_predict_one = X_hat[0, 1]
-					X_hat_predict_one = X_hat_predict_one[np.newaxis, np.newaxis, :, :, :]
-					result_list.append(X_hat_predict_one)
+						X_hat_predict_one = X_test_pad[0, predict_idx]
+						X_hat_predict_one = X_hat_predict_one[np.newaxis, np.newaxis, :, :, :]
+						result_list.append(X_hat_predict_one)
+					
+					elif predict_idx == key_frame_check[idx] + 1:
+						X_test_one = X_test_pad[0, predict_idx - 1]
+						X_test_one = X_test_one[np.newaxis, np.newaxis, :, :, :]
+						X_test_tmp = np.zeros(X_test_one.shape)
+						X_test_one = np.hstack([X_test_one, X_test_tmp])
+						X_hat = test_model.predict(X_test_one, batch_size)
 
-				else:
-					X_test_one = result_list[-1]
-					X_test_tmp = np.zeros(X_test_one.shape)
-					X_test_one = np.hstack([X_test_one, X_test_tmp])
-					X_hat = test_model.predict(X_test_one, batch_size)
+						X_hat_predict_one = X_hat[0, 1]
+						X_hat_predict_one = X_hat_predict_one[np.newaxis, np.newaxis, :, :, :]
+						result_list.append(X_hat_predict_one)
 
-					X_hat_predict_one = X_hat[0, 1]
-					X_hat_predict_one = X_hat_predict_one[np.newaxis, np.newaxis, :, :, :]
-					result_list.append(X_hat_predict_one)
+					else:
+						X_test_one = result_list[-1]
+						X_test_tmp = np.zeros(X_test_one.shape)
+						X_test_one = np.hstack([X_test_one, X_test_tmp])
+						X_hat = test_model.predict(X_test_one, batch_size)
+
+						X_hat_predict_one = X_hat[0, 1]
+						X_hat_predict_one = X_hat_predict_one[np.newaxis, np.newaxis, :, :, :]
+						result_list.append(X_hat_predict_one)
+		
+		else:
+			for idx in range(0, len(key_frame_check) - 1):
+				for predict_idx in range(key_frame_check[idx], key_frame_check[idx+1]):
+					# predictする画像がキーフレームの場合
+					if predict_idx == key_frame_check[idx]:
+						X_test_one = X_test_pad[0, idx]
+						X_test_one = X_test_one[np.newaxis, np.newaxis, :, :, :]
+						X_test_tmp = np.zeros(X_test_one.shape)
+						X_test_one = np.hstack([X_test_one, X_test_tmp])
+						X_hat = test_model.predict(X_test_one, batch_size)
+
+						X_hat_predict_one = X_test_pad[0, idx]
+						X_hat_predict_one = X_hat_predict_one[np.newaxis, np.newaxis, :, :, :]
+						result_list.append(X_hat_predict_one)
+					# predictする画像がキーフレームの次の画像の場合(キーフレームをもとにpredictする場合)
+					elif predict_idx == key_frame_check[idx] + 1:
+						X_test_one = X_test_pad[0, idx]
+						X_test_one = X_test_one[np.newaxis, np.newaxis, :, :, :]
+						X_test_tmp = np.zeros(X_test_one.shape)
+						X_test_one = np.hstack([X_test_one, X_test_tmp])
+						X_hat = test_model.predict(X_test_one, batch_size)
+
+						X_hat_predict_one = X_hat[0, 1]
+						X_hat_predict_one = X_hat_predict_one[np.newaxis, np.newaxis, :, :, :]
+						result_list.append(X_hat_predict_one)
+					# predictすをもとにpredictする場合
+					else:
+						X_test_one = result_list[-1]
+						X_test_tmp = np.zeros(X_test_one.shape)
+						X_test_one = np.hstack([X_test_one, X_test_tmp])
+						X_hat = test_model.predict(X_test_one, batch_size)
+
+						X_hat_predict_one = X_hat[0, 1]
+						X_hat_predict_one = X_hat_predict_one[np.newaxis, np.newaxis, :, :, :]
+						result_list.append(X_hat_predict_one)
 
 		# 推論結果を一つにまとめる
 		X_hat_flat = result_list[0]
@@ -504,15 +566,9 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, GPU_FLAG, VERBOSE, IMAGE_
 
 		count = 0 + start_image_index
 
-		if len(file_names) != X_test_shape[1]:
-			print("ERROR：The lengths of filename.txt and images do not match.")
-			print("filename.txt：", len(file_names))
-			print("number of images", X_test_shape[1])
-			exit()
-
 		for i in range(X_test_shape[0]):
 			for j in range(start_image_index, end_image_index+1):
-				tmp_np = decompress[i,j,:,:,:]
+				tmp_np = decompress[i,j-start_image_index,:,:,:]
 				tmp_np = tmp_np.astype('uint8')
 				tmp_image = Image.fromarray(tmp_np)
 				tmp_image.save(os.path.join(OUTPUT_DIR, file_names[count]))
