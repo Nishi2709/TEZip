@@ -117,7 +117,6 @@ if __name__ == '__main__':
   parser.add_argument('-f', '--force', action='store_true')
   parser.add_argument('-v', '--verbose', action='store_true')
   parser.add_argument('-n', '--no_entropy', action='store_false')
-  #parser.add_argument('-s', '--save_max_memory', type=float, metavar=('save_max_memory'), dest='save_max_memory', help='Max memory to use(units:GB. For example, 2.5 for 2.5GB).')
   parser.add_argument('-i', '--image_num_per_time', type=int, metavar=('image_num_per_time'), dest='image_num_per_time')
   args = parser.parse_args()
   main(args)

@@ -445,8 +445,8 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, GPU_FLAG, VERBOSE, IMAGE_
 			count += 1
 		else:
 			image_index_li = []
-	# 各逐次処理の最初と最後の画像indexを格納したlist作成
 
+	# 各逐次処理の最初と最後の画像indexを格納したlist作成
 	sequential_key_frame_li = []
 	for i in range(len(sequential_first_key_frame_li)):
 		if i != sequential_first_key_frame_li.index(sequential_first_key_frame_li[-1]):
@@ -454,11 +454,16 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, GPU_FLAG, VERBOSE, IMAGE_
 		else:
 			sequential_key_frame_li.append((sequential_first_key_frame_li[i], image_num-1))
 
+	print("Split execution mode.\n")
+
 	# 逐次実行
 	for sequential, index_tuple in enumerate(sequential_key_frame_li):
 		sequential += 1
 		start_image_index = index_tuple[0]
 		end_image_index = index_tuple[1]
+
+		print(f"Number of images for the {sequential} time：{end_image_index-start_image_index+1}")
+
 		# key_frame
 		X_test_pad = X_test_pad_all[:,start_image_index:end_image_index+1, :, :, :]
 		key_frame_check = key_frame_check_all[key_frame_check_all.index(start_image_index):key_frame_check_all.index(end_image_index+1)+1]
