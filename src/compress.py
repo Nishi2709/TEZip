@@ -409,8 +409,49 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 	# 逐次実行結果を結合して保持する用
 	result_difference_merged = np.array([])
 
+	weights_file = os.path.join(WEIGHTS_DIR, 'prednet_weights.hdf5')
+	json_file = os.path.join(WEIGHTS_DIR, 'prednet_model.json')
+
+	# Load trained model
+	try:
+		f = open(json_file, 'r')
+	except FileNotFoundError as e:
+		print("ERROR: No such file or directory:", json_file)
+		exit()
+	else :
+		json_string = f.read()
+		f.close()
+		train_model = model_from_json(json_string, custom_objects = {'PredNet': PredNet})
+	try:
+		train_model.load_weights(weights_file)
+	except OSError as e:
+		print("ERROR: No such file or directory:", weights_file)
+		exit()
+
+	# Create testing model (to output predictions)
+	layer_config = train_model.layers[1].get_config()
+	layer_config['output_mode'] = 'prediction'
+	data_format = layer_config['data_format'] if 'data_format' in layer_config else layer_config['dim_ordering']
+
+	# モデルセッティング
+	test_prednet = PredNet(weights=train_model.layers[1].get_weights(), **layer_config)
+	input_shape = list(train_model.layers[0].batch_input_shape[2:])
+	input_shape.insert(0, None)
+	inputs = Input(shape=tuple(input_shape))
+	predictions = test_prednet(inputs)
+	test_model = Model(inputs=inputs, outputs=predictions)
+
 	# 逐次実行
 	for sequential in range(1,sequential_times+1):
+		
+		"""
+		if (GPU_FLAG and (sequential!=1)) :
+			# tensorflowが占有しているメモリを解放
+			cuda.select_device(0)
+			cuda.close()
+		"""
+
+		print(f"exec {sequential}/{sequential_times}")
 		
 		start_index = IMAGE_NUM_PER_TIME * (sequential - 1)
 		end_index = (IMAGE_NUM_PER_TIME * sequential) -1
@@ -442,42 +483,12 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 				for file_name in files:
 					f.write("%s\n" % file_name)
 		
+		
 		X_test = origine_img.astype(np.float32) /255
 
 		batch_size = 10
 		nt = X_test.shape[1] # 画像の枚数
 
-		weights_file = os.path.join(WEIGHTS_DIR, 'prednet_weights.hdf5')
-		json_file = os.path.join(WEIGHTS_DIR, 'prednet_model.json')
-
-		# Load trained model
-		try:
-			f = open(json_file, 'r')
-		except FileNotFoundError as e:
-			print("ERROR: No such file or directory:", json_file)
-			exit()
-		else :
-			json_string = f.read()
-			f.close()
-			train_model = model_from_json(json_string, custom_objects = {'PredNet': PredNet})
-		try:
-			train_model.load_weights(weights_file)
-		except OSError as e:
-			print("ERROR: No such file or directory:", weights_file)
-			exit()
-
-		# Create testing model (to output predictions)
-		layer_config = train_model.layers[1].get_config()
-		layer_config['output_mode'] = 'prediction'
-		data_format = layer_config['data_format'] if 'data_format' in layer_config else layer_config['dim_ordering']
-
-		# モデルセッティング
-		test_prednet = PredNet(weights=train_model.layers[1].get_weights(), **layer_config)
-		input_shape = list(train_model.layers[0].batch_input_shape[2:])
-		input_shape.insert(0, None)
-		inputs = Input(shape=tuple(input_shape))
-		predictions = test_prednet(inputs)
-		test_model = Model(inputs=inputs, outputs=predictions)
 		
 		# 推論用に元画像にパディング
 		X_test_pad = data_padding(X_test)
@@ -586,9 +597,9 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 
 		# tmp
 		# zstdでキーフレームを圧縮・出力
-		data=zstd.compress(key_frame_str, 9)
-		with open(os.path.join(OUTPUT_DIR, f"key_frame{sequential}.dat"), mode='wb') as f:
-			f.write(data)
+		#data=zstd.compress(key_frame_str, 9)
+		#with open(os.path.join(OUTPUT_DIR, f"key_frame{sequential}.dat"), mode='wb') as f:
+		#	f.write(data)
 
 		# GPU無:numpy GPU有:cupyに設定
 		if GPU_FLAG:
@@ -723,9 +734,9 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 		result_difference_tmp_str = result_difference_tmp.tostring()
 
 		# zstdで差分を圧縮・出力
-		data=zstd.compress(result_difference_tmp_str, 9)
-		with open(os.path.join(OUTPUT_DIR, f"entropy{sequential}.dat"), mode='wb') as f:
-			f.write(data)
+		#data=zstd.compress(result_difference_tmp_str, 9)
+		#with open(os.path.join(OUTPUT_DIR, f"entropy{sequential}.dat"), mode='wb') as f:
+		#	f.write(data)
 
 	# zstdでキーフレームを圧縮・出力
 	data=zstd.compress(key_frame_str_merged, 9)
