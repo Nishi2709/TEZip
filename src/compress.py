@@ -20,7 +20,6 @@ import zstd
 
 import time
 
-
 def error_bound(origine, diff, mode, value, GPU_FLAG, xp):
 	if value[0] == 0 : return diff # Do nothing if lossless compression
 	Bf = origine.flatten() # Change to 1D array
@@ -443,6 +442,8 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 
 	# 逐次実行
 	for sequential in range(1,sequential_times+1):
+
+		print(f"exec {sequential}/{sequential_times}")
 		
 		"""
 		if (GPU_FLAG and (sequential!=1)) :
@@ -450,8 +451,6 @@ def run_save_memory(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, 
 			cuda.select_device(0)
 			cuda.close()
 		"""
-
-		print(f"exec {sequential}/{sequential_times}")
 		
 		start_index = IMAGE_NUM_PER_TIME * (sequential - 1)
 		end_index = (IMAGE_NUM_PER_TIME * sequential) -1
