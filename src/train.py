@@ -4,13 +4,13 @@ import hickle as hkl
 np.random.seed(123)
 from six.moves import cPickle
 
-from keras import backend as K
-from keras.models import Model
-from keras.layers import Input, Dense, Flatten
-from keras.layers import LSTM
-from keras.layers import TimeDistributed
-from keras.callbacks import LearningRateScheduler, ModelCheckpoint
-from keras.optimizers import Adam
+from tensorflow.keras import backend as K
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Dense, Flatten
+from tensorflow.keras.layers import LSTM
+from tensorflow.keras.layers import TimeDistributed
+from tensorflow.keras.callbacks import LearningRateScheduler, ModelCheckpoint
+from tensorflow.keras.optimizers import Adam
 
 from prednet import PredNet
 from data_utils import SequenceGenerator
