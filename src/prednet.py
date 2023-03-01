@@ -5,8 +5,9 @@ from tensorflow.keras import activations
 from tensorflow.keras.layers import RNN
 from tensorflow.keras.layers import Conv2D, UpSampling2D, MaxPooling2D
 from tensorflow.keras.layers import InputSpec
-from tensorflow.keras.legacy.interfaces import generate_legacy_interface, recurrent_args_preprocessor
 
+"""
+from tensorflow.keras.legacy.interfaces import generate_legacy_interface, recurrent_args_preprocessor
 
 legacy_prednet_support = generate_legacy_interface(
     allowed_positional_args=['stack_sizes', 'R_stack_sizes',
@@ -20,7 +21,8 @@ legacy_prednet_support = generate_legacy_interface(
                                         'mem': 1,
                                         'gpu': 2}},
     preprocessor=recurrent_args_preprocessor)
-
+"""
+    
 class PredNet(RNN):
     '''PredNet architecture - Lotter 2016.
         Stacked convolutional LSTM inspired by predictive coding principles.
@@ -73,7 +75,7 @@ class PredNet(RNN):
         - [Convolutional LSTM network: a machine learning approach for precipitation nowcasting](http://arxiv.org/abs/1506.04214)
         - [Predictive coding in the visual cortex: a functional interpretation of some extra-classical receptive-field effects](http://www.nature.com/neuro/journal/v2/n1/pdf/nn0199_79.pdf)
     '''
-    @legacy_prednet_support
+    #@legacy_prednet_support
     def __init__(self, stack_sizes, R_stack_sizes,
                  A_filt_sizes, Ahat_filt_sizes, R_filt_sizes,
                  pixel_max=1., error_activation='relu', A_activation='relu',
