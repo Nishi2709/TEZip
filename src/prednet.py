@@ -2,12 +2,12 @@ import numpy as np
 
 from tensorflow.keras import backend as K
 from tensorflow.keras import activations
-from tensorflow.keras.layers import RNN
+#from tensorflow.keras.layers import RNN, SimpleRNNCell
 from tensorflow.keras.layers import Conv2D, UpSampling2D, MaxPooling2D
 from tensorflow.keras.layers import InputSpec
 
-"""
-from tensorflow.keras.legacy.interfaces import generate_legacy_interface, recurrent_args_preprocessor
+
+from keras_utils import generate_legacy_interface, recurrent_args_preprocessor, Recurrent
 
 legacy_prednet_support = generate_legacy_interface(
     allowed_positional_args=['stack_sizes', 'R_stack_sizes',
@@ -21,9 +21,10 @@ legacy_prednet_support = generate_legacy_interface(
                                         'mem': 1,
                                         'gpu': 2}},
     preprocessor=recurrent_args_preprocessor)
-"""
-    
-class PredNet(RNN):
+
+
+
+class PredNet(Recurrent):
     '''PredNet architecture - Lotter 2016.
         Stacked convolutional LSTM inspired by predictive coding principles.
 
