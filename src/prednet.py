@@ -83,6 +83,7 @@ class PredNet(Recurrent):
                  LSTM_activation='tanh', LSTM_inner_activation='hard_sigmoid',
                  output_mode='error', extrap_start_time=None,
                  data_format=K.image_data_format(), **kwargs):
+        
         self.stack_sizes = stack_sizes
         self.nb_layers = len(stack_sizes)
         assert len(R_stack_sizes) == self.nb_layers, 'len(R_stack_sizes) must equal len(stack_sizes)'
@@ -182,11 +183,11 @@ class PredNet(Recurrent):
                 initial_state = K.reshape(initial_state, output_shp)
                 initial_states += [initial_state]
 
-        if K._BACKEND == 'theano':
-            from theano import tensor as T
+        #if K._BACKEND == 'theano':
+        #    from theano import tensor as T
             # There is a known issue in the Theano scan op when dealing with inputs whose shape is 1 along a dimension.
             # In our case, this is a problem when training on grayscale images, and the below line fixes it.
-            initial_states = [T.unbroadcast(init_state, 0, 1) for init_state in initial_states]
+        #    initial_states = [T.unbroadcast(init_state, 0, 1) for init_state in initial_states]
 
         if self.extrap_start_time is not None:
             initial_states += [K.variable(0, int if K.backend() != 'tensorflow' else 'int32')]  # the last state will correspond to the current timestep
@@ -210,7 +211,7 @@ class PredNet(Recurrent):
         self.upsample = UpSampling2D(data_format=self.data_format)
         self.pool = MaxPooling2D(data_format=self.data_format)
 
-        self.trainable_weights = []
+        self._trainable_weights = []
         nb_row, nb_col = (input_shape[-2], input_shape[-1]) if self.data_format == 'channels_first' else (input_shape[-3], input_shape[-2])
         for c in sorted(self.conv_layers.keys()):
             for l in range(len(self.conv_layers[c])):
@@ -227,7 +228,7 @@ class PredNet(Recurrent):
                 if self.data_format == 'channels_last': in_shape = (in_shape[0], in_shape[2], in_shape[3], in_shape[1])
                 with K.name_scope('layer_' + c + '_' + str(l)):
                     self.conv_layers[c][l].build(in_shape)
-                self.trainable_weights += self.conv_layers[c][l].trainable_weights
+                self._trainable_weights += self.conv_layers[c][l]._trainable_weights
 
         self.states = [None] * self.nb_layers*3
 
