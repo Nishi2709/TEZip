@@ -2,11 +2,11 @@ import numpy as np
 
 from keras import backend as K
 from keras import activations
-from keras.layers import Recurrent
+#from keras.layers import Recurrent
 from keras.layers import Conv2D, UpSampling2D, MaxPooling2D
 from keras.engine import InputSpec
-from keras.legacy.interfaces import generate_legacy_interface, recurrent_args_preprocessor
-
+#from keras.legacy.interfaces import generate_legacy_interface, recurrent_args_preprocessor
+from keras_utils import generate_legacy_interface, recurrent_args_preprocessor, Recurrent
 
 legacy_prednet_support = generate_legacy_interface(
     allowed_positional_args=['stack_sizes', 'R_stack_sizes',
