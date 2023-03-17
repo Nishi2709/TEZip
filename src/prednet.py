@@ -179,11 +179,11 @@ class PredNet(Recurrent):
                 initial_state = K.reshape(initial_state, output_shp)
                 initial_states += [initial_state]
 
-        if K._BACKEND == 'theano':
-            from theano import tensor as T
+        #if K._BACKEND == 'theano':
+        #    from theano import tensor as T
             # There is a known issue in the Theano scan op when dealing with inputs whose shape is 1 along a dimension.
             # In our case, this is a problem when training on grayscale images, and the below line fixes it.
-            initial_states = [T.unbroadcast(init_state, 0, 1) for init_state in initial_states]
+        #    initial_states = [T.unbroadcast(init_state, 0, 1) for init_state in initial_states]
 
         if self.extrap_start_time is not None:
             initial_states += [K.variable(0, int if K.backend() != 'tensorflow' else 'int32')]  # the last state will correspond to the current timestep
