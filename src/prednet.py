@@ -1,10 +1,10 @@
 import numpy as np
 
-from keras import backend as K
-from keras import activations
+from tensorflow.keras import backend as K
+from tensorflow.keras import activations
 #from keras.layers import Recurrent
-from keras.layers import Conv2D, UpSampling2D, MaxPooling2D
-from keras.engine import InputSpec
+from tensorflow.keras.layers import Conv2D, UpSampling2D, MaxPooling2D
+from tensorflow.keras.layers import InputSpec
 #from keras.legacy.interfaces import generate_legacy_interface, recurrent_args_preprocessor
 from keras_utils import generate_legacy_interface, recurrent_args_preprocessor, Recurrent
 

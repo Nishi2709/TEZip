@@ -1,9 +1,9 @@
 import os
 import numpy as np
 
-from keras import backend as K
-from keras.models import Model, model_from_json
-from keras.layers import Input, Dense, Flatten
+from tensorflow.keras import backend as K
+from tensorflow.keras.models import Model, model_from_json
+from tensorflow.keras.layers import Input, Dense, Flatten
 
 from prednet import PredNet
 from data_utils import SequenceGenerator, data_padding

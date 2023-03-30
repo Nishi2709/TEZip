@@ -1,8 +1,8 @@
 import hickle as hkl
 import numpy as np
 import gc
-from keras import backend as K
-from keras.preprocessing.image import Iterator
+from tensorflow.keras import backend as K
+from tensorflow.keras.preprocessing.image import Iterator
 
 # Data generator that creates sequences for input into PredNet.
 class SequenceGenerator(Iterator):
