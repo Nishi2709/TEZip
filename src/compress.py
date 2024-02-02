@@ -88,8 +88,7 @@ def replacing_based_on_frequency(arr, table, xp):
 
 	return result
 
-# line_profile用
-#@profile
+
 def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, MODE, BOUND_VALUE, GPU_FLAG, VERBOSE, ENTROPY_RUN):
 
 	if not os.path.exists(OUTPUT_DIR): os.mkdir(OUTPUT_DIR)
