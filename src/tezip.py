@@ -6,6 +6,10 @@ import os
 
 from tensorflow.python.client import device_lib
 
+import tensorflow as tf
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True  # 動的メモリ割り当てを有効にする
+session = tf.Session(config=config)
 
 def main(arg):
 
