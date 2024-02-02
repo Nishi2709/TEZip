@@ -6,8 +6,22 @@ import os
 
 from tensorflow.python.client import device_lib
 
+import psutil
+import os
 
+def memory_usage():
+    process = psutil.Process(os.getpid())
+    mem_bytes = process.memory_info().rss  # バイト単位での使用メモリ量
+    mem_gb = mem_bytes / (1024 ** 3)  # ギガバイト単位に変換
+    return mem_gb  # ギガバイト単位で使用メモリ量を返す
+
+
+# line_profile用
+#@profile
 def main(arg):
+
+  # メモリ計測用
+  #initial_mem = memory_usage()
 
   if arg.force:
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
@@ -83,6 +97,11 @@ def main(arg):
     print('learn or compress or uncompress.')
     print('Command to check the options is -h or --help')
 
+  # メモリ計測用
+  #final_mem = memory_usage()
+  #print(f"Initial memory: {initial_mem} GB")
+  #print(f"Final memory: {final_mem} GB")
+  #print(f"Consumed memory: {final_mem - initial_mem} GB")
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(prog='TEZIP', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
