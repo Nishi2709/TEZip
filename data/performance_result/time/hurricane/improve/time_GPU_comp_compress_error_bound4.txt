@@ -1,0 +1,149 @@
+Timer unit: 1e-06 s
+
+Total time: 21.3439 s
+File: src/compress.py
+Function: error_bound at line 22
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    22                                           @profile
+    23                                           def error_bound(origine, diff, mode, value, GPU_FLAG, xp):
+    24                                           
+    25        72        119.0      1.7      0.0  	if value[0] == 0 : return diff # Do nothing if lossless compression
+    26                                           	#Bf = origine.flatten() # Change to 1D array
+    27                                           	#Df = diff.flatten() # Change to 1D array
+    28        72        234.5      3.3      0.0  	Bf = origine.ravel()
+    29        72         55.1      0.8      0.0  	Df = diff.ravel()  
+    30                                           
+    31                                           
+    32        72         25.8      0.4      0.0  	if mode == "abs":
+    33        72       4110.1     57.1      0.0  		E = xp.abs(value[0])
+    34                                           	elif mode == "rel":
+    35                                           		diff_max = Bf.max()
+    36                                           		diff_min = Bf.min()
+    37                                           		E = (diff_max - diff_min) * value[0]
+    38                                           	elif mode == "absrel":
+    39                                           		if value[1] == 0 : return diff
+    40                                           		diff_max = Bf.max()
+    41                                           		diff_min = Bf.min()
+    42                                           		abs_value = xp.abs(value[0])
+    43                                           		rel_value = (diff_max - diff_min) * value[1]
+    44                                           		if abs_value < rel_value:
+    45                                           			E = abs_value
+    46                                           		else:
+    47                                           			E = rel_value
+    48                                           	elif mode == "pwrel":
+    49                                           		E = Bf * value[0] # Error abs
+    50                                           
+    51                                           	# If E is a decimal, the tolerance range will be a decimal.
+    52                                           	# And quantization will not be handled properly, so round down.
+    53        72       1277.4     17.7      0.0  	E = xp.floor(E)
+    54                                           
+    55        72       1285.0     17.8      0.0  	Du = Df + E # Du: Upper error bound
+    56        72        990.6     13.8      0.0  	Dl = Df - E # Dl: Lower error bound
+    57                                           
+    58        72         14.5      0.2      0.0  	if GPU_FLAG:
+    59        72     450619.1   6258.6      2.1  		Df = xp.asnumpy(Df)
+    60        72      54460.1    756.4      0.3  		Du = xp.asnumpy(Du)
+    61        72      51177.2    710.8      0.2  		Dl = xp.asnumpy(Dl)
+    62                                           
+    63        72        139.1      1.9      0.0  	u = float(np.inf) # Temp upper error bound
+    64        72         39.3      0.5      0.0  	l = -u # Temp lower error bound
+    65        72         23.4      0.3      0.0  	head = 0
+    66  18000072    2012073.4      0.1      9.4  	for i in range(len(Df)):
+    67                                           		# if accumulated product(intersect) set becomes empty,
+    68  18000000   11273609.5      0.6     52.8  		if min((u, Du[i])) - max((l, Dl[i])) < 0.0: #
+    69    234818     162357.7      0.7      0.8  			Df[head:i] = (u + l)/2 # compute a median [l, u]
+    70    234818      69420.4      0.3      0.3  			u = float(np.inf) # reinit
+    71    234818      37293.1      0.2      0.2  			l = -u # reinit
+    72    234818      27851.4      0.1      0.1  			head = i # update to the fist index of the next product(intersect) set
+    73  18000000    3630890.9      0.2     17.0  		if Du[i] < u: u = Du[i] # accumulate product(intersect) set
+    74  18000000    3537157.7      0.2     16.6  		if l < Dl[i]: l = Dl[i] # accumulate product(intersect) set
+    75        72       3661.1     50.8      0.0  	Df[head:len(Df)] = (u + l)/2 # compute the last median [l, u]
+    76        72         45.3      0.6      0.0  	if GPU_FLAG:
+    77        72      24145.2    335.4      0.1  		Df = xp.asarray(Df)
+    78        72        854.7     11.9      0.0  	return Df.reshape(diff.shape) # convert back to 2D array
+
+Total time: 49.3034 s
+File: src/tezip.py
+Function: main at line 15
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    15                                           @profile
+    16                                           def main(arg):
+    17                                           
+    18         1          0.7      0.7      0.0    if arg.force:
+    19                                               os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    20                                           
+    21                                             # GPUの有無を確認
+    22         1       2141.3   2141.3      0.0    devices = device_lib.list_local_devices()
+    23         1          0.2      0.2      0.0    GPU_flag = False
+    24                                           
+    25         5          1.3      0.3      0.0    for device in devices:
+    26         4          3.3      0.8      0.0      if device.device_type == 'GPU':
+    27         1          0.2      0.2      0.0        GPU_flag = True
+    28                                           
+    29         1          0.1      0.1      0.0    if GPU_flag:
+    30         1         28.8     28.8      0.0      print('GPU MODE')
+    31                                             else:
+    32                                               print('CPU MODE')
+    33                                           
+    34         1          2.1      2.1      0.0    if (arg.learn != None and arg.compress != None) or (arg.compress != None and arg.uncompress != None) or (arg.learn != None and arg.uncompress != None):
+    35                                               print('ERROR')
+    36                                               print('Please select only one of learn or compress or uncompress.')
+    37                                               print('Command to check the options is -h or --help')
+    38                                             
+    39         1          0.3      0.3      0.0    elif arg.learn != None:
+    40                                               print('train mode')
+    41                                               train.run(arg.learn[0], arg.learn[1], arg.verbose)
+    42                                           
+    43         1          0.4      0.4      0.0    elif arg.compress != None:
+    44         1         13.4     13.4      0.0      print('compress mode')
+    45         1          0.5      0.5      0.0      if arg.preprocess != None:
+    46         1          0.7      0.7      0.0        if arg.window == None and arg.threshold == None:
+    47                                                   print('ERROR')
+    48                                                   print('Please specify the window size(-w or --window) or MSE threshold(-t or --threshold) option!')
+    49                                                   print('Select window size for SWP and MSE threshold for DWP.')
+    50         1          0.5      0.5      0.0        elif arg.window != None and arg.threshold != None:
+    51                                                   print('ERROR')
+    52                                                   print('Please select only one of window size(-w or --window) or MSE threshold(-t or --threshold)!')
+    53                                                   print('Select window size for SWP and MSE threshold for DWP.')
+    54                                                 else:
+    55         1         12.1     12.1      0.0          print(arg.mode[0])
+    56         1          0.7      0.7      0.0          if arg.mode[0] == 'abs' or arg.mode[0] == 'rel' or arg.mode[0] == 'absrel' or arg.mode[0] == 'pwrel':
+    57         1          1.5      1.5      0.0            if arg.bound != None and len(arg.bound) != 0:
+    58         1          0.4      0.4      0.0              if ((arg.mode[0] == 'abs' or arg.mode[0] == 'rel' or arg.mode[0] == 'pwrel') and len(arg.bound) == 1) or (arg.mode[0] == 'absrel' and len(arg.bound) == 2):
+    59         1          0.3      0.3      0.0                if arg.window != None:
+    60         1   49301199.0    5e+07    100.0                  compress.run(arg.compress[0], arg.compress[1], arg.compress[2], arg.preprocess[0], arg.window[0], arg.threshold, arg.mode[0], arg.bound, GPU_flag, arg.verbose, arg.no_entropy)
+    61                                                         elif arg.threshold != None:
+    62                                                           compress.run(arg.compress[0], arg.compress[1], arg.compress[2], arg.preprocess[0], arg.window, arg.threshold[0], arg.mode[0], arg.bound, GPU_flag, arg.verbose, arg.no_entropy)
+    63                                                         else:
+    64                                                           print('unexpected error')
+    65                                                       else:
+    66                                                         print('ERROR')
+    67                                                         print('If the -m or --mode is \'abs\' or \'rel\' or \'pwrel\', enter one for -b or --bound. : value')
+    68                                                         print('If the -m or --mode is \'absrel\', enter two in -b or --bound. : abs_value rel_value')
+    69                                                     else:
+    70                                                       print('ERROR')
+    71                                                       print('Please specify the -b or --bound option!')
+    72                                                       print('error bound value.')
+    73                                                   else:
+    74                                                     print('ERROR')
+    75                                                     print('Please specify the -m or --mode correctly!')
+    76                                                     print('\'abs\' or \'rel\' or \'absrel\' or \'pwrel\'.')
+    77                                               else:
+    78                                                 print('ERROR')
+    79                                                 print('Please specify the -p or --preprocess option!')
+    80                                                 print('warm up num.')
+    81                                             
+    82                                             elif arg.uncompress != None:
+    83                                               print('uncompress mode')
+    84                                               decompress.run(arg.uncompress[0], arg.uncompress[1], arg.uncompress[2], GPU_flag, arg.verbose)
+    85                                             
+    86                                             else:
+    87                                               print('ERROR')
+    88                                               print('Please mode select!')
+    89                                               print('learn or compress or uncompress.')
+    90                                               print('Command to check the options is -h or --help')
+

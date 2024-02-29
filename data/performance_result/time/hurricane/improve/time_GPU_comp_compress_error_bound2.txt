@@ -1,0 +1,490 @@
+Timer unit: 1e-06 s
+
+Total time: 24.3873 s
+File: src/compress.py
+Function: error_bound at line 23
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    23                                           @profile
+    24                                           def error_bound(origine, diff, mode, value, GPU_FLAG, xp):
+    25        72        166.6      2.3      0.0  	if value[0] == 0 : return diff # Do nothing if lossless compression
+    26        72       4141.4     57.5      0.0  	Bf = origine.flatten() # Change to 1D array
+    27        72        639.4      8.9      0.0  	Df = diff.flatten() # Change to 1D array
+    28                                           
+    29        72         60.9      0.8      0.0  	if mode == "abs":
+    30        72       1752.4     24.3      0.0  		E = xp.abs(value[0])
+    31                                           	elif mode == "rel":
+    32                                           		diff_max = Bf.max()
+    33                                           		diff_min = Bf.min()
+    34                                           		E = (diff_max - diff_min) * value[0]
+    35                                           	elif mode == "absrel":
+    36                                           		if value[1] == 0 : return diff
+    37                                           		diff_max = Bf.max()
+    38                                           		diff_min = Bf.min()
+    39                                           		abs_value = xp.abs(value[0])
+    40                                           		rel_value = (diff_max - diff_min) * value[1]
+    41                                           		if abs_value < rel_value:
+    42                                           			E = abs_value
+    43                                           		else:
+    44                                           			E = rel_value
+    45                                           	elif mode == "pwrel":
+    46                                           		E = Bf * value[0] # Error abs
+    47                                           
+    48        72       1208.5     16.8      0.0  	Du = Df + E # Du: Upper error bound
+    49        72       1006.3     14.0      0.0  	Dl = Df - E # Dl: Lower error bound
+    50                                           
+    51        72         28.1      0.4      0.0  	if GPU_FLAG:
+    52        72     579700.6   8051.4      2.4  		Df = xp.asnumpy(Df)
+    53        72      54937.3    763.0      0.2  		Du = xp.asnumpy(Du)
+    54        72      53206.2    739.0      0.2  		Dl = xp.asnumpy(Dl)
+    55                                           
+    56                                           	"""
+    57                                           	u = float(np.inf) # Temp upper error bound
+    58                                           	l = -u # Temp lower error bound
+    59                                           	head = 0
+    60                                           
+    61                                           	for i in range(len(Df)):
+    62                                           		# if accumulated product(intersect) set becomes empty,
+    63                                           		if min((u, Du[i])) - max((l, Dl[i])) < 0.0: #
+    64                                           			Df[head:i] = (u + l)/2 # compute a median [l, u]
+    65                                           			u = float(np.inf) # reinit
+    66                                           			l = -u # reinit
+    67                                           			head = i # update to the fist index of the next product(intersect) set
+    68                                           		if Du[i] < u: u = Du[i] # accumulate product(intersect) set
+    69                                           		if l < Dl[i]: l = Dl[i] # accumulate product(intersect) set
+    70                                           	Df[head:len(Df)] = (u + l)/2 # compute the last median [l, u]
+    71                                           	
+    72                                           	if GPU_FLAG:
+    73                                           		Df = xp.asarray(Df)
+    74                                           	return Df.reshape(diff.shape) # convert back to 2D array
+    75                                           	
+    76                                           	"""
+    77                                           	# Initialize vectors for updated values
+    78        72        743.9     10.3      0.0  	updated_values = np.empty_like(Df)
+    79        72         93.2      1.3      0.0  	u = np.inf
+    80        72         67.4      0.9      0.0  	l = -np.inf
+    81        72         38.5      0.5      0.0  	head = 0
+    82                                           	
+    83  18000072    2091832.8      0.1      8.6  	for i in range(len(Df)):
+    84                                           		
+    85  18000000    5822268.2      0.3     23.9  		new_u = min(u, Du[i])
+    86  18000000    5734849.4      0.3     23.5  		new_l = max(l, Dl[i])
+    87                                           		
+    88                                           		# Check if the current set is empty
+    89  18000000    5762627.9      0.3     23.6  		if new_u - new_l < 0:
+    90                                           			# Update the values in the previous range
+    91    234818     172673.3      0.7      0.7  			updated_values[head:i] = (u + l) / 2
+    92    234818      32620.8      0.1      0.1  			head = i
+    93    234818      47318.1      0.2      0.2  			u = Du[i]
+    94    234818      51488.3      0.2      0.2  			l = Dl[i]
+    95                                           		else:
+    96  17765182    2080857.4      0.1      8.5  			u = new_u
+    97  17765182    1859760.0      0.1      7.6  			l = new_l
+    98                                           
+    99                                           	# Update the last segment
+   100        72       3701.4     51.4      0.0  	updated_values[head:] = (u + l) / 2
+   101                                           	
+   102        72         33.1      0.5      0.0  	if GPU_FLAG:
+   103        72      28476.9    395.5      0.1  		Df = xp.asarray(updated_values)
+   104        72       1007.9     14.0      0.0  	return Df.reshape(diff.shape) # convert back to 2D array
+
+Total time: 55.187 s
+File: src/compress.py
+Function: run at line 127
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+   127                                           @profile
+   128                                           def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, MODE, BOUND_VALUE, GPU_FLAG, VERBOSE, ENTROPY_RUN):
+   129                                           
+   130         1       4964.7   4964.7      0.0  	if not os.path.exists(OUTPUT_DIR): os.mkdir(OUTPUT_DIR)
+   131                                           
+   132         1       4706.3   4706.3      0.0  	file_paths = sorted(glob.glob(os.path.join(DATA_DIR, '*')))
+   133                                           
+   134         1          1.0      1.0      0.0  	if len(file_paths) == 0:
+   135                                           		print("ERROR:", DATA_DIR, "is an empty or non-existent directory")
+   136                                           		exit()
+   137                                           
+   138         1          0.1      0.1      0.0  	try:
+   139         1      12489.9  12489.9      0.0  		origine_img = np.array(Image.open(file_paths[0]))
+   140                                           
+   141         1       9296.0   9296.0      0.0  		image_mode = Image.open(file_paths[0]).mode
+   142                                           		# if image is other than RGB and grayscale, exit()
+   143         1          1.8      1.8      0.0  		if all([image_mode != 'RGB', image_mode != 'L']):
+   144                                           			print("ERROR: input image is {0}. Only RGB and grayscale are supported.".format(image_mode))
+   145                                           			exit()
+   146                                           
+   147                                           		# gray scale convert RGB
+   148         1          0.6      0.6      0.0  		isRGB = image_mode == 'RGB' # Identify input image channel.
+   149         1       7346.6   7346.6      0.0  		origine_img = np.array(Image.open(file_paths[0])) if isRGB else np.array(Image.open(file_paths[0]).convert('RGB'))
+   150                                           
+   151         1          5.1      5.1      0.0  		origine_img = origine_img[np.newaxis, np.newaxis, :, :, :]
+   152         1         11.4     11.4      0.0  		files = [os.path.basename(file_paths[0])]
+   153        34         15.5      0.5      0.0  		for path in file_paths[1:]:
+   154        33     493634.1  14958.6      0.9  			img = np.array((Image.open(path))) if isRGB else np.array((Image.open(path).convert('RGB')))
+   155        33        161.9      4.9      0.0  			img = img[np.newaxis, np.newaxis, :, :, :]
+   156        33      78025.3   2364.4      0.1  			origine_img = np.hstack([origine_img, img])
+   157        33        553.8     16.8      0.0  			files.append(os.path.basename(path))
+   158                                           	except PermissionError as e:
+   159                                           		print(DATA_DIR, "contains files or folders that are not images.")
+   160                                           		exit()
+   161                                           	except IndexError as e:
+   162                                           		print(DATA_DIR, "contains files or folders that are not images.")
+   163                                           		exit()
+   164                                           	except UnidentifiedImageError as e:
+   165                                           		print(DATA_DIR, "contains files or folders that are not images.")
+   166                                           		exit()
+   167                                           
+   168         1       4319.8   4319.8      0.0  	with open(os.path.join(OUTPUT_DIR, 'filename.txt'), 'w', encoding='UTF-8') as f:
+   169         1          6.1      6.1      0.0  		f.write(f"{int(isRGB)}\n") # Append rgb status to filename for later possible grayscale recovery.
+   170        35       2144.4     61.3      0.0  		for file_name in files:
+   171        34         12.9      0.4      0.0  			f.write("%s\n" % file_name)
+   172                                           
+   173         1      23068.2  23068.2      0.0  	X_test = origine_img.astype(np.float32) /255
+   174                                           
+   175         1          0.9      0.9      0.0  	batch_size = 10
+   176         1          5.7      5.7      0.0  	nt = X_test.shape[1] # 画像の枚数
+   177                                           
+   178         1         25.8     25.8      0.0  	weights_file = os.path.join(WEIGHTS_DIR, 'prednet_weights.hdf5')
+   179         1          2.2      2.2      0.0  	json_file = os.path.join(WEIGHTS_DIR, 'prednet_model.json')
+   180                                           
+   181                                           	# Load trained model
+   182         1          0.4      0.4      0.0  	try:
+   183         1       3300.9   3300.9      0.0  		f = open(json_file, 'r')
+   184                                           	except FileNotFoundError as e:
+   185                                           		print("ERROR: No such file or directory:", json_file)
+   186                                           		exit()
+   187                                           	else :
+   188         1        832.4    832.4      0.0  		json_string = f.read()
+   189         1       1404.4   1404.4      0.0  		f.close()
+   190         1     427375.0 427375.0      0.8  		train_model = model_from_json(json_string, custom_objects = {'PredNet': PredNet})
+   191         1          0.3      0.3      0.0  	try:
+   192         1     769952.5 769952.5      1.4  		train_model.load_weights(weights_file)
+   193                                           	except OSError as e:
+   194                                           		print("ERROR: No such file or directory:", weights_file)
+   195                                           		exit()
+   196                                           
+   197                                           	# Create testing model (to output predictions)
+   198         1         45.0     45.0      0.0  	layer_config = train_model.layers[1].get_config()
+   199         1          0.3      0.3      0.0  	layer_config['output_mode'] = 'prediction'
+   200         1          0.5      0.5      0.0  	data_format = layer_config['data_format'] if 'data_format' in layer_config else layer_config['dim_ordering']
+   201                                           
+   202                                           	# モデルセッティング
+   203         1      29629.4  29629.4      0.1  	test_prednet = PredNet(weights=train_model.layers[1].get_weights(), **layer_config)
+   204         1          7.7      7.7      0.0  	input_shape = list(train_model.layers[0].batch_input_shape[2:])
+   205         1          2.1      2.1      0.0  	input_shape.insert(0, None)
+   206         1        952.2    952.2      0.0  	inputs = Input(shape=tuple(input_shape))
+   207         1     636009.1 636009.1      1.2  	predictions = test_prednet(inputs)
+   208         1        186.8    186.8      0.0  	test_model = Model(inputs=inputs, outputs=predictions)
+   209                                           
+   210                                           	# 推論用に元画像にパディング
+   211         1      39158.6  39158.6      0.1  	X_test_pad = data_padding(X_test)
+   212                                           
+   213         1         90.5     90.5      0.0  	if test_model.input.shape[2] != X_test_pad.shape[2] or test_model.input.shape[3] != X_test_pad.shape[3]:
+   214                                           		print("ERROR:Image size is out of scope for this model.")
+   215                                           		print("Compatible sizes for this model are height", test_model.input.shape[2] - 7, "to", test_model.input.shape[2], "and width",  test_model.input.shape[3] - 7, "to", test_model.input.shape[3])
+   216                                           		exit()
+   217                                           
+   218         1       1652.3   1652.3      0.0  	key_frame = np.zeros(origine_img.shape, dtype='uint8')
+   219                                           
+   220         1          0.8      0.8      0.0  	origine_list = []
+   221         1          0.8      0.8      0.0  	predict_list = []
+   222                                           
+   223                                           	# warm up
+   224         4          9.6      2.4      0.0  	for w_idx in range(PREPROCESS):
+   225         3        302.0    100.7      0.0  		key_frame[0, w_idx] =  origine_img[0, w_idx]
+   226         3         13.0      4.3      0.0  		X_test_one = X_test_pad[0, w_idx]
+   227         3         14.5      4.8      0.0  		X_test_one = X_test_one[np.newaxis, np.newaxis, :, :, :]
+   228         3        900.7    300.2      0.0  		X_test_tmp = np.zeros(X_test_one.shape)
+   229         3       6050.8   2016.9      0.0  		X_test_one = np.hstack([X_test_one, X_test_tmp])
+   230         3   14033849.8    5e+06     25.4  		X_hat = test_model.predict(X_test_one, batch_size)
+   231                                           
+   232         3          9.3      3.1      0.0  		warm_up_frame = X_hat[0, 0]
+   233         3         10.1      3.4      0.0  		warm_up_frame = warm_up_frame[np.newaxis, np.newaxis, :, :, :]
+   234         3          1.8      0.6      0.0  		if w_idx == 0:
+   235         1          1.0      1.0      0.0  			predict_stack_np = warm_up_frame
+   236                                           		else:
+   237         2       1395.4    697.7      0.0  			predict_stack_np = np.hstack([predict_stack_np, warm_up_frame])
+   238                                           
+   239         1          1.1      1.1      0.0  	if PREPROCESS != 0:
+   240         1          6.5      6.5      0.0  		origine_list.append(origine_img[:, :PREPROCESS])
+   241         1          1.1      1.1      0.0  		predict_list.append(predict_stack_np)
+   242         1          1.6      1.6      0.0  		predict_stack_np = X_hat[0, 0]
+   243         1          2.3      2.3      0.0  		predict_stack_np = predict_stack_np[np.newaxis, np.newaxis, :, :, :]
+   244                                           
+   245         1          1.4      1.4      0.0  		origine_stack_np = origine_img[0, PREPROCESS]
+   246         1          0.9      0.9      0.0  		origine_stack_np = origine_stack_np[np.newaxis, np.newaxis, :, :, :]
+   247                                           
+   248                                           	# predict
+   249         1          1.1      1.1      0.0  	key_idx = PREPROCESS + 1
+   250         1          0.4      0.4      0.0  	stop_point = 0
+   251         1          0.6      0.6      0.0  	idx = PREPROCESS + 1
+   252        31         53.9      1.7      0.0  	while(idx < X_test_pad.shape[1]):
+   253        30         14.9      0.5      0.0  		if idx == key_idx:
+   254         6         10.5      1.7      0.0  			X_test_one = X_test_pad[0, idx - 1]
+   255         6        800.4    133.4      0.0  			key_frame[0, idx - 1] =  origine_img[0, idx - 1]
+   256                                           		else:
+   257        24         84.0      3.5      0.0  			X_test_one = predict_stack_np[0, -1]
+   258                                           
+   259        30         83.9      2.8      0.0  		X_test_one = X_test_one[np.newaxis, np.newaxis, :, :, :]
+   260        30      10088.5    336.3      0.0  		X_test_tmp = np.zeros(X_test_one.shape)
+   261        30      32812.2   1093.7      0.1  		X_test_one = np.hstack([X_test_one, X_test_tmp])
+   262        30    1049546.5  34984.9      1.9  		X_hat = test_model.predict(X_test_one, batch_size)
+   263                                           
+   264        30         83.1      2.8      0.0  		X_hat_predict_one = X_hat[0, 1]
+   265        30        124.1      4.1      0.0  		X_hat_predict_one = X_hat_predict_one[np.newaxis, np.newaxis, :, :, :]
+   266                                           
+   267        30         33.6      1.1      0.0  		X_test_origine_one = origine_img[0, idx]
+   268        30         38.7      1.3      0.0  		X_test_origine_one = X_test_origine_one[np.newaxis, np.newaxis, :, :, :]
+   269                                           
+   270        30         23.2      0.8      0.0  		if idx == 1:
+   271                                           			predict_stack_np = X_hat[0, 0]
+   272                                           			predict_stack_np = predict_stack_np[np.newaxis, np.newaxis, :, :, :]
+   273                                           			predict_stack_np = np.hstack([predict_stack_np, X_hat_predict_one])
+   274                                           			origine_stack_np = origine_img[0, :2]
+   275                                           			origine_stack_np = origine_stack_np[np.newaxis, :, :, :]
+   276                                           		else:
+   277        30      32109.9   1070.3      0.1  			predict_stack_np = np.hstack([predict_stack_np, X_hat_predict_one])
+   278        30      10513.2    350.4      0.0  			origine_stack_np = np.hstack([origine_stack_np, X_test_origine_one])
+   279                                           
+   280        30         37.4      1.2      0.0  		if idx >= key_idx:
+   281        30     178210.8   5940.4      0.3  			stop_point = np.mean( (X_test_pad[:, key_idx:idx+1] - predict_stack_np[:, 1:])**2 )
+   282        30         33.3      1.1      0.0  			if VERBOSE: print("MSE:", stop_point)
+   283                                           
+   284        30         70.1      2.3      0.0  		if (THRESHOLD != None and stop_point > THRESHOLD) or (WINDOW_SIZE != None and (idx - PREPROCESS) % WINDOW_SIZE == 0):
+   285         6          5.1      0.8      0.0  			if VERBOSE: print("move key point")
+   286         6         28.3      4.7      0.0  			origine_result = origine_stack_np[:, :-1]
+   287         6         17.8      3.0      0.0  			origine_list.append(origine_result)
+   288         6          6.3      1.1      0.0  			predict_result = predict_stack_np[:, :-1]
+   289         6          3.3      0.5      0.0  			predict_list.append(predict_result)
+   290                                           
+   291         6          7.6      1.3      0.0  			origine_stack_np = origine_img[0, idx]
+   292         6         14.7      2.5      0.0  			origine_stack_np = origine_stack_np[np.newaxis, np.newaxis, :, :, :]
+   293         6          5.0      0.8      0.0  			predict_stack_np = X_hat[0, 0]
+   294         6          5.4      0.9      0.0  			predict_stack_np = predict_stack_np[np.newaxis, np.newaxis, :, :, :]
+   295         6         11.8      2.0      0.0  			if idx == X_test.shape[1] - 1:
+   296         1         64.2     64.2      0.0  				key_frame[0, idx] =  origine_img[0, idx]
+   297         1        246.7    246.7      0.0  				predict_stack_np[0, 0] = X_hat[0, 1]
+   298         6          4.6      0.8      0.0  			key_idx = idx + 1
+   299         6          4.8      0.8      0.0  			stop_point = 0
+   300                                           
+   301        30         42.2      1.4      0.0  		idx += 1
+   302         1          2.0      2.0      0.0  	origine_list.append(origine_stack_np)
+   303         1          0.8      0.8      0.0  	predict_list.append(predict_stack_np)
+   304                                           
+   305                                           	# キーフレームの出力
+   306         1       2111.0   2111.0      0.0  	key_frame = key_frame.flatten()
+   307         1       3641.3   3641.3      0.0  	key_frame = key_frame.astype('uint8')
+   308         1       2356.8   2356.8      0.0  	key_frame_str = key_frame.tostring()
+   309                                           
+   310                                           	# zstdでキーフレームを圧縮・出力
+   311         1      31433.7  31433.7      0.1  	data=zstd.compress(key_frame_str, 9)
+   312         1       4465.3   4465.3      0.0  	with open(os.path.join(OUTPUT_DIR, "key_frame.dat"), mode='wb') as f:
+   313         1       2084.8   2084.8      0.0  		f.write(data)
+   314                                           
+   315                                           	# GPU無:numpy GPU有:cupyに設定
+   316         1          1.0      1.0      0.0  	if GPU_FLAG:
+   317                                           		# tensorflowが占有しているメモリを解放
+   318         1        992.4    992.4      0.0  		cuda.select_device(0)
+   319         1     100176.2 100176.2      0.2  		cuda.close()
+   320         1     193961.6 193961.6      0.4  		import cupy as xp
+   321                                           	else:
+   322                                           		import numpy as xp
+   323                                           
+   324         1          0.5      0.5      0.0  	error_bound_time = 0
+   325                                           
+   326                                           	# エラーバウンド機構実施の準備
+   327         1          0.3      0.3      0.0  	difference_list = []
+   328         9          7.8      0.9      0.0  	for idx in range(len(origine_list)):
+   329         8      20584.7   2573.1      0.0  		origine_pick = origine_list[idx] /255
+   330         8         13.5      1.7      0.0  		predict_pick = predict_list[idx]
+   331                                           
+   332                                           		# 推論画像からパディングを外す
+   333         8         64.5      8.1      0.0  		predict_pick_no_pad = predict_pick[:, :, :X_test.shape[2], :X_test.shape[3]]
+   334                                           
+   335                                           		# GPU無:numpy GPU有:cupyに変換
+   336         8          5.5      0.7      0.0  		if GPU_FLAG:
+   337         8     219731.9  27466.5      0.4  			origine_pick = xp.asarray(origine_pick)
+   338         8      24669.8   3083.7      0.0  			predict_pick_no_pad = xp.asarray(predict_pick_no_pad)
+   339         8      55110.5   6888.8      0.1  			X_hat_1=xp.multiply(predict_pick_no_pad[:,:],255.000,casting='unsafe')
+   340         8       2071.1    258.9      0.0  			X_test_1=xp.multiply(origine_pick[:,:],255.000,casting='unsafe')
+   341                                           		else:
+   342                                           			X_hat_1=np.multiply(predict_pick_no_pad[:,:],255.000,casting='unsafe')
+   343                                           			X_test_1=np.multiply(origine_pick[:,:],255.000,casting='unsafe')
+   344                                           
+   345         8       1541.4    192.7      0.0  		X_test_1=X_test_1.astype(int)
+   346         8        734.5     91.8      0.0  		X_hat_1 = X_hat_1.astype(int)
+   347                                           
+   348         8       4802.6    600.3      0.0  		difference = (X_hat_1[:, :] - X_test_1[:, :])
+   349         8        212.3     26.5      0.0  		difference[:, 0] = 0
+   350         8          5.7      0.7      0.0  		if not (PREPROCESS != 0 and idx == 0):
+   351        31         36.4      1.2      0.0  			for img_num in range(1, difference.shape[1]):
+   352        24         27.4      1.1      0.0  				start = time.time()
+   353        96        109.2      1.1      0.0  				for channel in range(3):
+   354        72   35694757.2 495760.5     64.7  					difference[:,img_num, :, :, channel] = error_bound(X_test_1[:,img_num, :, :, channel], difference[:,img_num, :, :, channel], MODE, BOUND_VALUE, GPU_FLAG, xp)
+   355                                           
+   356        24        104.4      4.3      0.0  				elapsed_time = time.time() - start
+   357        24         16.5      0.7      0.0  				error_bound_time = error_bound_time + elapsed_time
+   358                                           
+   359         8         12.2      1.5      0.0  		difference_list.append(difference)
+   360                                           
+   361         1          0.7      0.7      0.0  	if VERBOSE: print ("error_bound:{0}".format(error_bound_time) + "[sec]")
+   362                                           
+   363                                           	# 推論結果をまとめる　GPU&pwrelの場合はこの段階でcupyに切り替わる
+   364         1          0.7      0.7      0.0  	difference_model = difference_list[0]
+   365         8          5.6      0.7      0.0  	for X_hat_np in difference_list[1:]:
+   366         7      10324.2   1474.9      0.0  		difference_model = xp.hstack([difference_model, X_hat_np])
+   367                                           
+   368         1     189015.5 189015.5      0.3  	difference_model = difference_model.astype('int16')
+   369                                           
+   370                                           	# Density-based Spatial Encoding
+   371                                           
+   372         1          3.7      3.7      0.0  	start = time.time()
+   373                                           
+   374         1       1964.5   1964.5      0.0  	difference_model = finding_difference(difference_model)
+   375         1         26.4     26.4      0.0  	difference_model=difference_model.flatten()
+   376                                           
+   377         1          2.3      2.3      0.0  	elapsed_time = time.time() - start
+   378                                           
+   379         1          0.7      0.7      0.0  	if VERBOSE: print ("finding_difference:{0}".format(elapsed_time) + "[sec]")
+   380                                           
+   381         1          0.3      0.3      0.0  	if ENTROPY_RUN:
+   382                                           		# エントロピー符号化のテーブル作成のために適当な正の整数に変換(1600との差分として保存)
+   383         1        914.0    914.0      0.0  		difference_model = xp.subtract(1600, difference_model)
+   384                                           
+   385                                           		# エントロピー符号化用のテーブル作成
+   386         1          2.1      2.1      0.0  		start = time.time()
+   387         1          0.6      0.6      0.0  		table = []
+   388         1         31.8     31.8      0.0  		x_elem = difference_model.flatten()
+   389         1      36253.7  36253.7      0.1  		y_elem = xp.bincount(x_elem)
+   390         1      17078.1  17078.1      0.0  		ii_elem = xp.nonzero(y_elem)[0]
+   391         1       1767.8   1767.8      0.0  		d = list(zip(ii_elem, y_elem[ii_elem]))
+   392         1     108173.1 108173.1      0.2  		d.sort(key=takeSecond, reverse=True)
+   393       402        116.8      0.3      0.0  		for key, value in d :
+   394       401        123.3      0.3      0.0  			table.append(key)
+   395                                           
+   396         1       2971.8   2971.8      0.0  		table_xp = xp.array(table, dtype='int16')
+   397                                           
+   398         1          3.3      3.3      0.0  		elapsed_time = time.time() - start
+   399                                           
+   400         1          0.6      0.6      0.0  		if VERBOSE: print ("table_create:{0}".format(elapsed_time) + "[sec]")
+   401                                           
+   402         1          0.5      0.5      0.0  		start = time.time()
+   403                                           		# エントロピー符号化
+   404         1       9203.7   9203.7      0.0  		difference_model = replacing_based_on_frequency(difference_model, table_xp, xp)
+   405                                           
+   406         1          1.7      1.7      0.0  		elapsed_time = time.time() - start
+   407                                           
+   408         1          0.4      0.4      0.0  		if VERBOSE: print ("replacing_based_on_frequency:{0}".format(elapsed_time) + "[sec]")
+   409                                           
+   410         1          7.8      7.8      0.0  	result_difference = difference_model.flatten()
+   411                                           
+   412                                           	# cupyに変換していたらnumpyに戻す(他ライブラリが絡む&append未実装のバージョンがあるため)
+   413         1          0.4      0.4      0.0  	if GPU_FLAG:
+   414         1     195299.8 195299.8      0.4  		result_difference = xp.asnumpy(result_difference)
+   415                                           
+   416         1          0.5      0.5      0.0  	if ENTROPY_RUN:
+   417                                           		# 差分配列の末尾にエントロピー符号化のテーブルを仕込んでおく
+   418         1      17920.6  17920.6      0.0  		s_np = np.array(table, dtype='int16')
+   419         1      13724.4  13724.4      0.0  		result_difference = np.append(result_difference, s_np)
+   420         1      52536.8  52536.8      0.1  		result_difference = np.append(result_difference, len(table))
+   421                                           	else:
+   422                                           		result_difference = np.append(result_difference, -1)
+   423                                           
+   424                                           	# 差分配列の末尾にshapeとPREPROCESSを仕込んで保存しておく
+   425         6         14.7      2.4      0.0  	for shapes in X_test.shape:
+   426         5     163567.7  32713.5      0.3  		result_difference = np.append(result_difference, shapes)
+   427         1      27194.7  27194.7      0.0  	result_difference = np.append(result_difference, PREPROCESS)
+   428                                           
+   429         1      16243.1  16243.1      0.0  	result_difference = result_difference.astype(np.int16)
+   430         1       6874.4   6874.4      0.0  	result_difference_str = result_difference.tostring()
+   431                                           
+   432                                           	# zstdで差分を圧縮・出力
+   433         1      33213.3  33213.3      0.1  	data=zstd.compress(result_difference_str, 9)
+   434         1       4669.5   4669.5      0.0  	with open(os.path.join(OUTPUT_DIR, "entropy.dat"), mode='wb') as f:
+   435         1       2703.7   2703.7      0.0  		f.write(data)
+
+Total time: 55.1946 s
+File: src/tezip.py
+Function: main at line 15
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    15                                           @profile
+    16                                           def main(arg):
+    17                                           
+    18         1          0.6      0.6      0.0    if arg.force:
+    19                                               os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    20                                           
+    21                                             # GPUの有無を確認
+    22         1       4211.3   4211.3      0.0    devices = device_lib.list_local_devices()
+    23         1          0.4      0.4      0.0    GPU_flag = False
+    24                                           
+    25         5          0.9      0.2      0.0    for device in devices:
+    26         4          3.8      0.9      0.0      if device.device_type == 'GPU':
+    27         1          0.2      0.2      0.0        GPU_flag = True
+    28                                           
+    29         1          0.1      0.1      0.0    if GPU_flag:
+    30         1         31.6     31.6      0.0      print('GPU MODE')
+    31                                             else:
+    32                                               print('CPU MODE')
+    33                                           
+    34         1          1.5      1.5      0.0    if (arg.learn != None and arg.compress != None) or (arg.compress != None and arg.uncompress != None) or (arg.learn != None and arg.uncompress != None):
+    35                                               print('ERROR')
+    36                                               print('Please select only one of learn or compress or uncompress.')
+    37                                               print('Command to check the options is -h or --help')
+    38                                             
+    39         1          0.2      0.2      0.0    elif arg.learn != None:
+    40                                               print('train mode')
+    41                                               train.run(arg.learn[0], arg.learn[1], arg.verbose)
+    42                                           
+    43         1          0.2      0.2      0.0    elif arg.compress != None:
+    44         1         12.9     12.9      0.0      print('compress mode')
+    45         1          0.5      0.5      0.0      if arg.preprocess != None:
+    46         1          0.9      0.9      0.0        if arg.window == None and arg.threshold == None:
+    47                                                   print('ERROR')
+    48                                                   print('Please specify the window size(-w or --window) or MSE threshold(-t or --threshold) option!')
+    49                                                   print('Select window size for SWP and MSE threshold for DWP.')
+    50         1          0.4      0.4      0.0        elif arg.window != None and arg.threshold != None:
+    51                                                   print('ERROR')
+    52                                                   print('Please select only one of window size(-w or --window) or MSE threshold(-t or --threshold)!')
+    53                                                   print('Select window size for SWP and MSE threshold for DWP.')
+    54                                                 else:
+    55         1         11.9     11.9      0.0          print(arg.mode[0])
+    56         1          0.9      0.9      0.0          if arg.mode[0] == 'abs' or arg.mode[0] == 'rel' or arg.mode[0] == 'absrel' or arg.mode[0] == 'pwrel':
+    57         1          1.2      1.2      0.0            if arg.bound != None and len(arg.bound) != 0:
+    58         1          0.5      0.5      0.0              if ((arg.mode[0] == 'abs' or arg.mode[0] == 'rel' or arg.mode[0] == 'pwrel') and len(arg.bound) == 1) or (arg.mode[0] == 'absrel' and len(arg.bound) == 2):
+    59         1          0.3      0.3      0.0                if arg.window != None:
+    60         1   55190334.6    6e+07    100.0                  compress.run(arg.compress[0], arg.compress[1], arg.compress[2], arg.preprocess[0], arg.window[0], arg.threshold, arg.mode[0], arg.bound, GPU_flag, arg.verbose, arg.no_entropy)
+    61                                                         elif arg.threshold != None:
+    62                                                           compress.run(arg.compress[0], arg.compress[1], arg.compress[2], arg.preprocess[0], arg.window, arg.threshold[0], arg.mode[0], arg.bound, GPU_flag, arg.verbose, arg.no_entropy)
+    63                                                         else:
+    64                                                           print('unexpected error')
+    65                                                       else:
+    66                                                         print('ERROR')
+    67                                                         print('If the -m or --mode is \'abs\' or \'rel\' or \'pwrel\', enter one for -b or --bound. : value')
+    68                                                         print('If the -m or --mode is \'absrel\', enter two in -b or --bound. : abs_value rel_value')
+    69                                                     else:
+    70                                                       print('ERROR')
+    71                                                       print('Please specify the -b or --bound option!')
+    72                                                       print('error bound value.')
+    73                                                   else:
+    74                                                     print('ERROR')
+    75                                                     print('Please specify the -m or --mode correctly!')
+    76                                                     print('\'abs\' or \'rel\' or \'absrel\' or \'pwrel\'.')
+    77                                               else:
+    78                                                 print('ERROR')
+    79                                                 print('Please specify the -p or --preprocess option!')
+    80                                                 print('warm up num.')
+    81                                             
+    82                                             elif arg.uncompress != None:
+    83                                               print('uncompress mode')
+    84                                               decompress.run(arg.uncompress[0], arg.uncompress[1], arg.uncompress[2], GPU_flag, arg.verbose)
+    85                                             
+    86                                             else:
+    87                                               print('ERROR')
+    88                                               print('Please mode select!')
+    89                                               print('learn or compress or uncompress.')
+    90                                               print('Command to check the options is -h or --help')
+

@@ -11,6 +11,8 @@ config = tf.ConfigProto()
 config.gpu_options.allow_growth = True  # 動的メモリ割り当てを有効にする
 session = tf.Session(config=config)
 
+# line_profile用
+@profile
 def main(arg):
 
   if arg.force:

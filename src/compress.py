@@ -19,6 +19,9 @@ import zstd
 
 import time
 
+# line_profile用
+#@profile
+"""
 def error_bound(origine, diff, mode, value, GPU_FLAG, xp):
 	if value[0] == 0 : return diff # Do nothing if lossless compression
 	Bf = origine.flatten() # Change to 1D array
@@ -54,6 +57,7 @@ def error_bound(origine, diff, mode, value, GPU_FLAG, xp):
 	u = float(np.inf) # Temp upper error bound
 	l = -u # Temp lower error bound
 	head = 0
+
 	for i in range(len(Df)):
 		# if accumulated product(intersect) set becomes empty,
 		if min((u, Du[i])) - max((l, Dl[i])) < 0.0: #
@@ -64,8 +68,85 @@ def error_bound(origine, diff, mode, value, GPU_FLAG, xp):
 		if Du[i] < u: u = Du[i] # accumulate product(intersect) set
 		if l < Dl[i]: l = Dl[i] # accumulate product(intersect) set
 	Df[head:len(Df)] = (u + l)/2 # compute the last median [l, u]
+	
 	if GPU_FLAG:
 		Df = xp.asarray(Df)
+	return Df.reshape(diff.shape) # convert back to 2D array
+"""
+@profile
+def error_bound(origine, diff, mode, value, GPU_FLAG, xp):
+	if value[0] == 0: return diff  # Do nothing if lossless compression
+	#Df = diff.reshape(diff.shape[0], diff.shape[1]*diff.shape[2] , diff.shape[3])
+	#Bf = origine.reshape(origine.shape[0], origine.shape[1]*origine.shape[2] , origine.shape[3])
+	Df = diff.reshape(diff.shape[1]*diff.shape[2] , diff.shape[3])
+	Bf = origine.reshape(origine.shape[1]*origine.shape[2] , origine.shape[3])
+
+	if mode == "abs":
+		E = xp.abs(value[0])
+	elif mode == "rel":
+		#diff_max = origine.max(axis=(1, 2), keepdims=True)
+		#diff_min = origine.min(axis=(1, 2), keepdims=True)
+		diff_max = Bf.max(axis=(1), keepdims=True)
+		diff_min = Bf.min(axis=(1), keepdims=True)
+		E = (diff_max - diff_min) * value[0]
+	elif mode == "absrel":
+		if value[1] == 0:
+			return diff
+		#diff_max = origine.max(axis=(1, 2), keepdims=True)
+		#diff_min = origine.min(axis=(1, 2), keepdims=True)
+		diff_max = Bf.max(axis=(1), keepdims=True)
+		diff_min = Bf.min(axis=(1), keepdims=True)
+		abs_value = xp.abs(value[0])
+		rel_value = (diff_max - diff_min) * value[1]
+		E = xp.where(abs_value < rel_value, abs_value, rel_value)
+	elif mode == "pwrel":
+		E = origine * value[0]  # Error abs
+	
+	Du = Df + E  # Du: Upper error bound
+	Dl = Df - E  # Dl: Lower error bound
+
+	u_per_channel_array = np.full((3),float(np.inf)) # Temp upper error bound
+	l_per_channel_array = np.full((3),-float(np.inf)) # Temp lower error bound
+
+	if GPU_FLAG:
+		Df = xp.asnumpy(Df)
+		Du = xp.asnumpy(Du)
+		Dl = xp.asnumpy(Dl)
+		u_per_channel_array = xp.asnumpy(u_per_channel_array)
+		l_per_channel_array = xp.asnumpy(l_per_channel_array)
+
+	head_per_channel_li = np.zeros(3, dtype=int)
+
+	for i in range(Df.shape[1]):
+		# channelごとの許容範囲に収まらないタイミングのbool
+		Du_target = Du[i,:]
+		Dl_target = Dl[i,:]
+		#boundary_bool = np.minimum(u_per_channel_array, Du_target)[0] - np.maximum(l_per_channel_array, Dl_target)[0] < 0
+		boundary_bool = np.minimum(u_per_channel_array, Du_target) - np.maximum(l_per_channel_array, Dl_target) < 0
+		# 許容範囲を超えたチャネルのインデックスを取得
+		channel_index_array = np.where(boundary_bool==True)[0]
+
+		if len(channel_index_array) >= 1:
+			for channel_index in channel_index_array:
+				#Df[0,head_per_channel_li[channel_index]:i,channel_index] = (u_per_channel_array[channel_index] + l_per_channel_array[channel_index])/2 # compute a median [l, u]
+				Df[head_per_channel_li[channel_index]:i,channel_index] = (u_per_channel_array[channel_index] + l_per_channel_array[channel_index])/2 # compute a median [l, u]
+				u_per_channel_array[channel_index] = float(np.inf) # reinit
+				l_per_channel_array[channel_index] = -u_per_channel_array[channel_index] # reinit
+				head_per_channel_li[channel_index] = i # update to the fist index of the next product(intersect) set
+
+		# if Du[i] < u: u = Du[i] 
+		#u_per_channel_array = np.where(u_per_channel_array > Du_target[0], Du_target[0], u_per_channel_array) # accumulate product(intersect) set
+		u_per_channel_array = np.where(u_per_channel_array > Du_target, Du_target, u_per_channel_array) # accumulate product(intersect) set
+		# if l < Dl[i]: l = Dl[i] 
+		#l_per_channel_array = np.where(l_per_channel_array < Dl_target[0], Dl_target[0], l_per_channel_array) # accumulate product(intersect) set	
+		l_per_channel_array = np.where(l_per_channel_array < Dl_target, Dl_target, l_per_channel_array) # accumulate product(intersect) set	
+
+	for channel_index in range(3):
+		Df[head_per_channel_li[channel_index]:len(Df),channel_index] = (u_per_channel_array[channel_index] + l_per_channel_array[channel_index])/2 # compute the last median [l, u]
+
+	if GPU_FLAG:
+		Df = xp.asarray(Df)
+
 	return Df.reshape(diff.shape) # convert back to 2D array
 
 
@@ -88,7 +169,8 @@ def replacing_based_on_frequency(arr, table, xp):
 
 	return result
 
-
+# line_profile用
+# @profile
 def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, MODE, BOUND_VALUE, GPU_FLAG, VERBOSE, ENTROPY_RUN):
 
 	if not os.path.exists(OUTPUT_DIR): os.mkdir(OUTPUT_DIR)
@@ -314,8 +396,9 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 		if not (PREPROCESS != 0 and idx == 0):
 			for img_num in range(1, difference.shape[1]):
 				start = time.time()
-				for channel in range(3):
-					difference[:,img_num, :, :, channel] = error_bound(X_test_1[:,img_num, :, :, channel], difference[:,img_num, :, :, channel], MODE, BOUND_VALUE, GPU_FLAG, xp)
+				#for channel in range(3):
+					#difference[:,img_num, :, :, channel] = error_bound(X_test_1[:,img_num, :, :, channel], difference[:,img_num, :, :, channel], MODE, BOUND_VALUE, GPU_FLAG, xp)
+				difference[:,img_num, :, :, :] = error_bound(X_test_1[:,img_num, :, :, :], difference[:,img_num, :, :, :], MODE, BOUND_VALUE, GPU_FLAG, xp)
 
 				elapsed_time = time.time() - start
 				error_bound_time = error_bound_time + elapsed_time
