@@ -19,60 +19,73 @@ import zstd
 
 import time
 
-
 def error_bound(origine, diff, mode, value, GPU_FLAG, xp):
-	if value[0] == 0 : return diff # Do nothing if lossless compression
-	Bf = origine.flatten() # Change to 1D array
-	Df = diff.flatten() # Change to 1D array
+	if value[0] == 0: return diff  # Do nothing if lossless compression
+	Df = diff.reshape(diff.shape[0]*diff.shape[2], diff.shape[3]*diff.shape[4], diff.shape[5])
+	Bf = origine.reshape(origine.shape[0]*origine.shape[2], origine.shape[3]*origine.shape[4], origine.shape[5])
 
 	if mode == "abs":
 		E = xp.abs(value[0])
 	elif mode == "rel":
-		diff_max = Bf.max()
-		diff_min = Bf.min()
+		diff_max = Bf.max(axis=(1), keepdims=True)
+		diff_min = Bf.min(axis=(1), keepdims=True)
 		E = (diff_max - diff_min) * value[0]
 	elif mode == "absrel":
-		if value[1] == 0 : return diff
-		diff_max = Bf.max()
-		diff_min = Bf.min()
+		if value[1] == 0:
+			return diff
+		diff_max = Bf.max(axis=(1), keepdims=True)
+		diff_min = Bf.min(axis=(1), keepdims=True)
 		abs_value = xp.abs(value[0])
 		rel_value = (diff_max - diff_min) * value[1]
-		if abs_value < rel_value:
-			E = abs_value
-		else:
-			E = rel_value
+		E = xp.where(abs_value < rel_value, abs_value, rel_value)
 	elif mode == "pwrel":
-		E = Bf * value[0] # Error abs
-
-	# If E is a decimal, the tolerance range will be a decimal.
-	# And quantization will not be handled properly, so round down.
-	E = xp.floor(E)
-
-	Du = Df + E # Du: Upper error bound
-	Dl = Df - E # Dl: Lower error bound
+		E = origine * value[0]  # Error abs
+	
+	Du = Df + E  # Du: Upper error bound
+	Dl = Df - E  # Dl: Lower error bound
+	
+	u_per_channel_array = np.full((Df.shape[0],Df.shape[2]),float(np.inf)) # Temp upper error bound
+	l_per_channel_array = np.full((Df.shape[0],Df.shape[2]),-float(np.inf)) # Temp lower error bound
 
 	if GPU_FLAG:
 		Df = xp.asnumpy(Df)
 		Du = xp.asnumpy(Du)
 		Dl = xp.asnumpy(Dl)
+		u_per_channel_array = xp.asnumpy(u_per_channel_array)
+		l_per_channel_array = xp.asnumpy(l_per_channel_array)
 
-	u = float(np.inf) # Temp upper error bound
-	l = -u # Temp lower error bound
-	head = 0
-	for i in range(len(Df)):
-		# if accumulated product(intersect) set becomes empty,
-		if min((u, Du[i])) - max((l, Dl[i])) < 0.0: #
-			Df[head:i] = (u + l)/2 # compute a median [l, u]
-			u = float(np.inf) # reinit
-			l = -u # reinit
-			head = i # update to the fist index of the next product(intersect) set
-		if Du[i] < u: u = Du[i] # accumulate product(intersect) set
-		if l < Dl[i]: l = Dl[i] # accumulate product(intersect) set
-	Df[head:len(Df)] = (u + l)/2 # compute the last median [l, u]
+	head_per_channel_array = np.zeros((Df.shape[0],Df.shape[2]), dtype=int)
+
+	for i in range(Df.shape[1]):
+		# channelごとの許容範囲に収まらないタイミングのbool
+		Du_target = Du[:,i,:]
+		Dl_target = Dl[:,i,:]
+		boundary_bool = np.minimum(u_per_channel_array, Du_target) - np.maximum(l_per_channel_array, Dl_target) < 0
+		# 許容範囲を超えたチャネルのインデックスを取得
+		indices = np.where(boundary_bool)
+		# インデックスをタプルのリストに変換
+		index_array = list(zip(indices[0], indices[1]))
+
+		if len(index_array) >= 1:
+			for img_index, channel_index in index_array:
+				Df[img_index, head_per_channel_array[img_index, channel_index]:i, channel_index] = (u_per_channel_array[img_index, channel_index] + l_per_channel_array[img_index, channel_index])/2 # compute a median [l, u]
+				u_per_channel_array[img_index, channel_index] = float(np.inf) # reinit
+				l_per_channel_array[img_index, channel_index] = -u_per_channel_array[img_index, channel_index] # reinit
+				head_per_channel_array[img_index, channel_index] = i # update to the fist index of the next product(intersect) set
+
+		u_per_channel_array = np.where(u_per_channel_array > Du_target, Du_target, u_per_channel_array) # accumulate product(intersect) set
+		l_per_channel_array = np.where(l_per_channel_array < Dl_target, Dl_target, l_per_channel_array) # accumulate product(intersect) set	
+
+	# 画像のループ
+	for img_index in range(Df.shape[0]):
+		# チャンネルのループ
+		for channel_index in range(Df.shape[2]):
+			Df[img_index, head_per_channel_array[img_index, channel_index]:Df.shape[1], channel_index] = (u_per_channel_array[img_index, channel_index] + l_per_channel_array[img_index, channel_index])/2 # compute the last median [l, u]
+
 	if GPU_FLAG:
 		Df = xp.asarray(Df)
-	return Df.reshape(diff.shape) # convert back to 2D array
 
+	return Df.reshape(diff.shape) # convert back to 2D array
 
 def finding_difference(arr):
     arr_f = arr.flatten()
@@ -92,7 +105,6 @@ def replacing_based_on_frequency(arr, table, xp):
 		result = xp.where(result == num, idx, result)
 
 	return result
-
 
 def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, MODE, BOUND_VALUE, GPU_FLAG, VERBOSE, ENTROPY_RUN):
 
@@ -148,6 +160,9 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 	json_file = os.path.join(WEIGHTS_DIR, 'prednet_model.json')
 
 	# Load trained model
+
+	start_time = time.time()
+
 	try:
 		f = open(json_file, 'r')
 	except FileNotFoundError as e:
@@ -176,6 +191,10 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 	predictions = test_prednet(inputs)
 	test_model = Model(inputs=inputs, outputs=predictions)
 
+	end_time = time.time()
+	elapsed_time = end_time - start_time
+	if VERBOSE: print ("load_trained_model:{0}".format(elapsed_time) + "[sec]")
+
 	# 推論用に元画像にパディング
 	X_test_pad = data_padding(X_test)
 
@@ -190,6 +209,9 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 	predict_list = []
 
 	# warm up
+
+	start_time = time.time()
+
 	for w_idx in range(PREPROCESS):
 		key_frame[0, w_idx] =  origine_img[0, w_idx]
 		X_test_one = X_test_pad[0, w_idx]
@@ -214,7 +236,14 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 		origine_stack_np = origine_img[0, PREPROCESS]
 		origine_stack_np = origine_stack_np[np.newaxis, np.newaxis, :, :, :]
 
+	end_time = time.time()
+	elapsed_time = end_time - start_time
+	if VERBOSE: print ("warm_up:{0}".format(elapsed_time) + "[sec]")
+
 	# predict
+	
+	start_time = time.time()
+
 	key_idx = PREPROCESS + 1
 	stop_point = 0
 	idx = PREPROCESS + 1
@@ -271,6 +300,10 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 	origine_list.append(origine_stack_np)
 	predict_list.append(predict_stack_np)
 
+	end_time = time.time()
+	elapsed_time = end_time - start_time
+	if VERBOSE: print ("predict:{0}".format(elapsed_time) + "[sec]")
+
 	# キーフレームの出力
 	key_frame = key_frame.flatten()
 	key_frame = key_frame.astype('uint8')
@@ -293,46 +326,63 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 	error_bound_time = 0
 
 	# エラーバウンド機構実施の準備
+
+	start_time = time.time()
+
+	# shapeが変わるインデックスを記録するリスト
+	shape_change_indices_li = []
+	for i in range(len(origine_list)):
+		if i == 0:
+			shape_change_indices_li.append(i)
+		else:
+			# 前の要素と形状を比較
+			if origine_list[i].shape != origine_list[i-1].shape:
+				shape_change_indices_li.append(i)
+
 	difference_list = []
-	for idx in range(len(origine_list)):
-		origine_pick = origine_list[idx] /255
-		predict_pick = predict_list[idx]
+	for i in range(len(shape_change_indices_li)):
+		if i != len(shape_change_indices_li)-1:
+			origine_array = np.array(origine_list[shape_change_indices_li[i]:shape_change_indices_li[i+1]])
+			predict_array = np.array(predict_list[shape_change_indices_li[i]:shape_change_indices_li[i+1]])
+		else:
+			origine_array = np.array(origine_list[shape_change_indices_li[i]:])
+			predict_array = np.array(predict_list[shape_change_indices_li[i]:])
+
+		origine_array = np.divide(origine_array, 255.000)
 
 		# 推論画像からパディングを外す
-		predict_pick_no_pad = predict_pick[:, :, :X_test.shape[2], :X_test.shape[3]]
+		predict_array_no_pad = predict_array[:, :, :, :X_test.shape[2], :X_test.shape[3]]
 
 		# GPU無:numpy GPU有:cupyに変換
 		if GPU_FLAG:
-			origine_pick = xp.asarray(origine_pick)
-			predict_pick_no_pad = xp.asarray(predict_pick_no_pad)
-			X_hat_1=xp.multiply(predict_pick_no_pad[:,:],255.000,casting='unsafe')
-			X_test_1=xp.multiply(origine_pick[:,:],255.000,casting='unsafe')
+			origine_array = xp.asarray(origine_array)
+			predict_array_no_pad = xp.asarray(predict_array_no_pad)
+			X_hat_1=xp.multiply(predict_array_no_pad[:,:],255.000,casting='unsafe')
+			X_test_1=xp.multiply(origine_array[:,:],255.000,casting='unsafe')
 		else:
-			X_hat_1=np.multiply(predict_pick_no_pad[:,:],255.000,casting='unsafe')
-			X_test_1=np.multiply(origine_pick[:,:],255.000,casting='unsafe')
+			X_hat_1=np.multiply(predict_array_no_pad[:,:],255.000,casting='unsafe')
+			X_test_1=np.multiply(origine_array[:,:],255.000,casting='unsafe')
 
-		X_test_1=X_test_1.astype(int)
+		X_test_1 = X_test_1.astype(int)
 		X_hat_1 = X_hat_1.astype(int)
 
 		difference = (X_hat_1[:, :] - X_test_1[:, :])
-		difference[:, 0] = 0
-		if not (PREPROCESS != 0 and idx == 0):
-			for img_num in range(1, difference.shape[1]):
-				start = time.time()
-				for channel in range(3):
-					difference[:,img_num, :, :, channel] = error_bound(X_test_1[:,img_num, :, :, channel], difference[:,img_num, :, :, channel], MODE, BOUND_VALUE, GPU_FLAG, xp)
-
-				elapsed_time = time.time() - start
-				error_bound_time = error_bound_time + elapsed_time
-
+		difference[:, :, 0] = 0
+		if not (PREPROCESS != 0 and i == 0):
+			difference = error_bound(X_test_1, difference, MODE, BOUND_VALUE, GPU_FLAG, xp)
+		
 		difference_list.append(difference)
+
+	end_time = time.time()
+	error_bound_time = end_time - start_time
 
 	if VERBOSE: print ("error_bound:{0}".format(error_bound_time) + "[sec]")
 
 	# 推論結果をまとめる　GPU&pwrelの場合はこの段階でcupyに切り替わる
-	difference_model = difference_list[0]
+	difference_model = difference_list[0][0,:]
 	for X_hat_np in difference_list[1:]:
-		difference_model = xp.hstack([difference_model, X_hat_np])
+		for i in range(X_hat_np.shape[0]):
+			difference_model = xp.hstack([difference_model, X_hat_np[i]])
 
 	difference_model = difference_model.astype('int16')
 
