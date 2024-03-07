@@ -373,12 +373,6 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 		
 		difference_list.append(difference)
 
-
-	cnt = 0
-	for idx in range(len(difference_list)):
-		for idx_2 in range(difference_list[idx].shape[0]):
-			np.save(f'../../../../riken/TEZip/TEZip/debug/improve_performance/error_bound_index{cnt}_abs_fixed', difference_list[idx][idx_2,:])
-			cnt += 1
 	end_time = time.time()
 	error_bound_time = end_time - start_time
 
