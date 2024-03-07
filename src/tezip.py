@@ -11,8 +11,8 @@ config = tf.ConfigProto()
 config.gpu_options.allow_growth = True  # 動的メモリ割り当てを有効にする
 session = tf.Session(config=config)
 
-# line_profile用
-@profile
+import time
+
 def main(arg):
 
   if arg.force:
@@ -91,6 +91,9 @@ def main(arg):
 
 
 if __name__ == '__main__':
+  
+  start_time = time.time()
+
   parser = argparse.ArgumentParser(prog='TEZIP', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
   parser.add_argument('-l', '--learn', type=str, nargs=2, metavar=('model', 'dir'), dest='learn')
   parser.add_argument('-c', '--compress', type=str, nargs=3, metavar=('model', 'dir', 'file'), dest='compress')
@@ -105,3 +108,7 @@ if __name__ == '__main__':
   parser.add_argument('-n', '--no_entropy', action='store_false')
   args = parser.parse_args()
   main(args)
+
+  end_time = time.time()
+  elapsed_time = end_time - start_time
+  if args.verbose: print ("tatal_time:{0}".format(elapsed_time) + "[sec]")
