@@ -1,0 +1,8 @@
+load_trained_model:1.6539859771728516[sec]
+warm_up:13.831652164459229[sec]
+predict:2.8321290016174316[sec]
+error_bound:34.74204468727112[sec]
+finding_difference:0.00984048843383789[sec]
+table_create:0.1981499195098877[sec]
+replacing_based_on_frequency:0.01232290267944336[sec]
+tatal_time:57.94815921783447[sec]
