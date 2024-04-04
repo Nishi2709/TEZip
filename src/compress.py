@@ -144,6 +144,9 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 	json_file = os.path.join(WEIGHTS_DIR, 'prednet_model.json')
 
 	# Load trained model
+	
+	start_time = time.time()
+
 	try:
 		f = open(json_file, 'r')
 	except FileNotFoundError as e:
@@ -172,6 +175,10 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 	predictions = test_prednet(inputs)
 	test_model = Model(inputs=inputs, outputs=predictions)
 
+	end_time = time.time()
+	elapsed_time = end_time - start_time
+	if VERBOSE: print ("load_trained_model:{0}".format(elapsed_time) + "[sec]")
+
 	# 推論用に元画像にパディング
 	X_test_pad = data_padding(X_test)
 
@@ -186,6 +193,9 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 	predict_list = []
 
 	# warm up
+
+	start_time = time.time()
+
 	for w_idx in range(PREPROCESS):
 		key_frame[0, w_idx] =  origine_img[0, w_idx]
 		X_test_one = X_test_pad[0, w_idx]
@@ -210,7 +220,15 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 		origine_stack_np = origine_img[0, PREPROCESS]
 		origine_stack_np = origine_stack_np[np.newaxis, np.newaxis, :, :, :]
 
+	end_time = time.time()
+	elapsed_time = end_time - start_time
+	if VERBOSE: print ("warm_up:{0}".format(elapsed_time) + "[sec]")
+
+
 	# predict
+	
+	start_time = time.time()
+
 	key_idx = PREPROCESS + 1
 	stop_point = 0
 	idx = PREPROCESS + 1
@@ -266,6 +284,10 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 		idx += 1
 	origine_list.append(origine_stack_np)
 	predict_list.append(predict_stack_np)
+	
+	end_time = time.time()
+	elapsed_time = end_time - start_time
+	if VERBOSE: print ("predict:{0}".format(elapsed_time) + "[sec]")
 
 	# キーフレームの出力
 	key_frame = key_frame.flatten()
@@ -289,6 +311,7 @@ def run(WEIGHTS_DIR, DATA_DIR, OUTPUT_DIR, PREPROCESS, WINDOW_SIZE, THRESHOLD, M
 	error_bound_time = 0
 
 	# エラーバウンド機構実施の準備
+	
 	difference_list = []
 	for idx in range(len(origine_list)):
 		origine_pick = origine_list[idx] /255
